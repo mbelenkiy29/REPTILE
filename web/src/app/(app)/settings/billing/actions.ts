@@ -6,9 +6,9 @@ import { requireOrg } from "@/lib/data/session";
 import { attempt } from "@/lib/actions";
 
 /** Stripe Checkout for the Team plan (test mode until deploy). */
-export async function checkout() {
+export async function checkout(interval: "month" | "year" = "month") {
   const ctx = await requireOrg();
-  const r = await attempt(() => startCheckout(ctx));
+  const r = await attempt(() => startCheckout(ctx, interval === "year" ? "year" : "month"));
   if (!r.ok) return r;
   redirect(r.data.url);
 }

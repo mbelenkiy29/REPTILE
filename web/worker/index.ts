@@ -2,7 +2,6 @@
 // Usage: npx tsx worker/index.ts   (needs DATABASE_URL and the provider keys in the environment)
 import { db, schema as s } from "@/db";
 import { DEAD_LETTER, getBoss, QUEUES, type JobData, type QueueName } from "@/lib/jobs";
-import { reportUsage } from "@/lib/billing";
 import { runReview } from "./jobs/review-pr";
 import { indexRepo } from "./jobs/index-repo";
 import { answerThread, billingEmails, cleanup, learnRules, sendEmailJob, syncReactions } from "./jobs/misc";
@@ -16,7 +15,6 @@ export const HANDLERS: { [Q in QueueName]: Handler<Q> } = {
   "send-email": (d) => sendEmailJob(d),
   "sync-reactions": () => syncReactions(),
   "learn-rules": () => learnRules(),
-  "report-usage": () => reportUsage(),
   "cleanup": () => cleanup(),
   "billing-emails": () => billingEmails(),
 };
@@ -24,7 +22,6 @@ export const HANDLERS: { [Q in QueueName]: Handler<Q> } = {
 // UTC cron schedules.
 const SCHEDULES: [QueueName, string][] = [
   ["sync-reactions", "*/15 * * * *"],
-  ["report-usage", "7 * * * *"],
   ["learn-rules", "23 2 * * *"],
   ["cleanup", "41 3 * * *"],
   ["billing-emails", "13 9 * * *"],
@@ -52,6 +49,8 @@ async function main() {
     console.error(`[worker] dead letter ${j.id}`);
   });
   for (const [name, cron] of SCHEDULES) await boss.schedule(name, cron, {}, { tz: "UTC" });
+  // Retired with flat pricing (nothing is metered): drop its schedule from databases that still have it.
+  await boss.unschedule("report-usage").catch(() => {});
   console.log(`[worker] running ${Object.keys(HANDLERS).length} queues`);
   const stop = async () => {
     console.log("[worker] stopping");

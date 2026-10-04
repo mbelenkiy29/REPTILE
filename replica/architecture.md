@@ -18,7 +18,7 @@ No Redis and no microservices.
 | LLM | **Claude API** (`@anthropic-ai/sdk`), `claude-opus-5-5` for every call | One model means one prompt-cache namespace. Cost is tuned per call with `output_config.effort`: `low` for triage and labels, `high` for the review pass, `xhigh` for the "deep" tier. Adaptive thinking. Server-side `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a refusal is rerouted instead of failing the review. |
 | embeddings | **Voyage AI `voyage-code-3`** (1024-d) | Anthropic has no embeddings endpoint. Voyage is the code-tuned model that Anthropic's docs recommend. It sits behind a small `embed()` interface so it can be swapped. |
 | jobs | **pg-boss** (queue in Postgres), run by a **worker on Fly.io** | Clone + index + review takes minutes and needs a real disk and `git`, which is past serverless limits. The queue in Postgres means no extra infrastructure. |
-| payments | Stripe Checkout + Billing (per-seat price + metered **Meter** for overage reviews) | Matches the pricing model (seats including 50 reviews each, then pay per review). The customer portal handles invoices and cards. |
+| payments | Stripe Checkout + Billing (one licensed per-seat price, monthly or annual; nothing metered since /replica-launch) | Flat pricing: seats including 50 reviews each, pooled; past that, reviews pause (see `launch/pricing.md`). The customer portal handles invoices and cards. |
 | email | Resend + React Email | For invites, trial ending, failed payments and "first review posted". |
 | files | none in v1 | Clones live on the worker's ephemeral volume and are deleted after each job. KB docs live in Postgres. |
 | hosting | Vercel (web), Fly.io (worker, 2 machines, 4 GB, 20 GB volume) | Both are managed and deploy from git. Fly keeps a long-running process with local disk. |
@@ -121,7 +121,7 @@ Everything under `/api/v1` uses an API key (`Authorization: Bearer rpt_…`).
 | `ACTION inviteMember` | create invite + email | admin | email, role | invite | F09 S12 |
 | `GET /invite/[token]` | accept invite (sign in first) | invitee | — | membership | F09 |
 | `ACTION changeRole / removeMember` | — | admin (can't remove the last admin) | userId, role | membership | F09 S12 |
-| `POST /api/billing/checkout` | Stripe Checkout session (seat price + metered price) | admin | seats | redirect URL | F09 S13 |
+| `POST /api/billing/checkout` | Stripe Checkout session (seat price, monthly or annual) | admin | seats | redirect URL | F09 S13 |
 | `POST /api/billing/portal` | Stripe customer portal session | admin | — | redirect URL | F09 S13 |
 | `POST /api/webhooks/stripe` | verify signature, dedupe via `webhook_deliveries`, sync plan, status and seats | Stripe | event | 200 | F09 |
 | `ACTION createApiKey / revokeApiKey` | key shown once, hashed at rest | admin | name | key (once) | S15 |
@@ -148,7 +148,7 @@ Everything under `/api/v1` uses an API key (`Authorization: Bearer rpt_…`).
 | `answer-thread` | reply that mentions the bot | answer in-thread using the finding and code context |
 | `sync-reactions` | every 15 min | GitHub sends **no reaction webhooks**, so this lists reactions on our comments for findings open in the last 14 days and upserts `feedback` |
 | `learn-rules` | nightly | cluster 👎'd findings and human review comments per org → propose `rules(status='suggested')` with evidence |
-| `report-usage` | hourly | send unreported `usage_events` beyond the included reviews to the Stripe Meter, then set `reported_to_stripe_at` |
+| ~~`report-usage`~~ | retired | removed with flat pricing; the worker unschedules it. `usage_events.reported_to_stripe_at` is unused |
 | `refresh-kb` | after `index-repo` when >5% of files changed (could) | regenerate affected `knowledge_docs` (skips human-edited docs unless forced) |
 | `cleanup` | daily 03:00 UTC | prune `webhook_deliveries` >30 d; purge chunks/KB for repos with `removed_at` >7 d; expire invites; delete leftover clones |
 | `billing-emails` | daily | trial ends in 3 days / payment failed |

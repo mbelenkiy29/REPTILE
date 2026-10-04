@@ -8,7 +8,6 @@ export const QUEUES = {
   "send-email": { retryLimit: 5, retryDelay: 30, retryBackoff: true, expireInSeconds: 60, policy: "standard" },
   "sync-reactions": { retryLimit: 1, expireInSeconds: 10 * 60, policy: "singleton" },
   "learn-rules": { retryLimit: 1, expireInSeconds: 30 * 60, policy: "singleton" },
-  "report-usage": { retryLimit: 3, retryDelay: 60, expireInSeconds: 5 * 60, policy: "singleton" },
   "cleanup": { retryLimit: 1, expireInSeconds: 30 * 60, policy: "singleton" },
   "billing-emails": { retryLimit: 1, expireInSeconds: 10 * 60, policy: "singleton" },
 } as const;
@@ -22,7 +21,6 @@ export interface JobData {
   "send-email": { to: string; template: string; vars: Record<string, string> };
   "sync-reactions": Record<string, never>;
   "learn-rules": Record<string, never>;
-  "report-usage": Record<string, never>;
   "cleanup": Record<string, never>;
   "billing-emails": Record<string, never>;
 }

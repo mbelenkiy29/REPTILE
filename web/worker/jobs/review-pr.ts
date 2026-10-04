@@ -5,7 +5,8 @@
 import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import picomatch from "picomatch";
 import { db, schema as s, sql } from "@/db";
-import { FREE_PLAN, onFreePlan, recordUsage } from "@/lib/billing";
+import { ALLOWANCE_WARNING, allowance, FREE_PLAN, onFreePlan, periodStart, recordUsage } from "@/lib/billing";
+import { enqueue } from "@/lib/jobs";
 import { toFinding } from "@/lib/data";
 import { gitHost, type GitHost, type PrFile, type ReviewCommentInput } from "@/lib/github";
 import { checkRunTitle, fingerprint, renderInlineComment, renderSummary, SUMMARY_MARKER } from "@/lib/review/markdown";
@@ -58,13 +59,17 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
   // Plan gate: an ended trial or a canceled subscription pauses reviews (nothing is posted, nothing billed).
   if (org.plan === "trial" && org.trialEndsAt && Date.parse(new Date(org.trialEndsAt).toISOString()) < Date.now()) return finishSkipped("The trial has ended. Choose a plan to resume reviews.");
   if (org.billingStatus === "canceled" && org.plan !== "trial" && org.plan !== "enterprise") return finishSkipped("The subscription is canceled. Choose a plan to resume reviews.");
-  if (onFreePlan(org)) {
-    const [{ n }] = await db.select({ n: dsql<number>`count(*)::int` }).from(s.memberships).where(eq(s.memberships.orgId, org.id));
-    if (n > FREE_PLAN.members) return finishSkipped("The Free plan covers one member. Choose the Team plan to review for the whole team.");
-    const period = now().slice(0, 8) + "01";
-    const [{ used }] = await db.select({ used: dsql<number>`coalesce(sum(${s.usageEvents.credits}), 0)::int` }).from(s.usageEvents)
-      .where(and(eq(s.usageEvents.orgId, org.id), eq(s.usageEvents.periodStart, period)));
-    if (used >= FREE_PLAN.reviewsPerMonth) return finishSkipped(`This month's ${FREE_PLAN.reviewsPerMonth} free reviews are used. Reviews resume on the 1st, or choose the Team plan.`);
+  // Allowance gate (Free and Team): past the month's reviews, reviews pause until the 1st. Nothing is ever charged per review.
+  if (onFreePlan(org) || org.plan === "pro") {
+    const free = onFreePlan(org);
+    const a = await allowance(org);
+    if (free && a.seats > FREE_PLAN.members) return finishSkipped("The Free plan covers one member. Choose the Team plan to review for the whole team.");
+    if (a.used >= a.included) {
+      return finishSkipped(free
+        ? `This month's ${a.included} free reviews are used. Reviews resume on the 1st, or choose the Team plan.`
+        : `This month's ${a.included} Team reviews are used. Reviews resume on the 1st. Adding a seat adds ${org.includedReviewsPerSeat} more; nothing is charged per review.`);
+    }
+    if (a.used + 1 >= Math.ceil(a.included * ALLOWANCE_WARNING)) await warnAllowance(org, a);
   }
   if (inst.suspendedAt || repo.removedAt) return finishSkipped("The GitHub App no longer has access to this repository.");
 
@@ -296,4 +301,20 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
     }
   }));
   return out;
+}
+
+/** One email per org per month to its admins when usage reaches ALLOWANCE_WARNING of the allowance. */
+async function warnAllowance(org: typeof s.organizations.$inferSelect, a: { used: number; included: number }) {
+  // rate_limits doubles as a "sent" marker. Dated the 1st of next month, so the daily cleanup (rows over 2 days old)
+  // keeps it for the whole month.
+  const d = new Date();
+  const nextMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString();
+  const marker = await db.execute(dsql`insert into rate_limits (key, window_start, count) values (${`allowance-warning:${org.id}:${periodStart()}`}, ${nextMonth}::timestamptz, 1) on conflict do nothing returning key`);
+  if (!marker.length) return;
+  const admins = await db.select({ email: s.users.email }).from(s.memberships).innerJoin(s.users, eq(s.users.id, s.memberships.userId))
+    .where(and(eq(s.memberships.orgId, org.id), eq(s.memberships.role, "admin")));
+  const url = `${(process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/settings/billing`;
+  for (const ad of admins) {
+    if (ad.email) await enqueue("send-email", { to: ad.email, template: "allowance-warning", vars: { org: org.name, used: String(a.used + 1), included: String(a.included), url } });
+  }
 }

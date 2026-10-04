@@ -703,37 +703,35 @@ export interface Billing {
   periodStart: string;
   periodEnd: string;
   pricePerSeatCents: number;
-  overagePerReviewCents: number;
+  /** Annual price per seat, shown per month; null when annual billing isn't configured. */
+  pricePerSeatAnnualCents: number | null;
   invoices: { id: string; date: string; amountCents: number; status: "paid" | "open"; url?: string }[];
 }
 
 export async function getBilling(ctx: Ctx): Promise<Billing> {
   await simulate();
-  const { FREE_PLAN, PRICING, listInvoices, onFreePlan } = await import("@/lib/billing");
+  const { PRICING, allowance, annualConfigured, listInvoices } = await import("@/lib/billing");
   const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, ctx.orgId));
   const d = new Date();
   const periodStart = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
   const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-  const [{ seats }] = await db.select({ seats: count() }).from(s.memberships).where(eq(s.memberships.orgId, ctx.orgId));
-  const [{ used }] = await db.select({ used: sum(s.usageEvents.credits) }).from(s.usageEvents)
-    .where(and(eq(s.usageEvents.orgId, ctx.orgId), eq(s.usageEvents.periodStart, periodStart)));
+  const a = await allowance(org);
   return {
     plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: iso(org.trialEndsAt),
     trialDaysLeft: org.plan === "trial" && org.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(iso(org.trialEndsAt)!) - Date.now()) / 864e5)) : null,
-    seats: Number(seats), usedReviews: Number(used ?? 0),
-    includedReviews: onFreePlan(org) ? FREE_PLAN.reviewsPerMonth : Number(seats) * org.includedReviewsPerSeat,
+    seats: a.seats, usedReviews: a.used, includedReviews: a.included,
     periodStart, periodEnd: next.toISOString().slice(0, 10),
-    pricePerSeatCents: PRICING.seatCents, overagePerReviewCents: PRICING.overageCents,
+    pricePerSeatCents: PRICING.seatCents, pricePerSeatAnnualCents: annualConfigured() ? PRICING.seatAnnualCents : null,
     invoices: org.stripeCustomerId ? await listInvoices(org.stripeCustomerId) : [],
   };
 }
 
 /** Returns a Stripe Checkout URL. */
-export async function startCheckout(ctx: Ctx): Promise<{ url: string }> {
+export async function startCheckout(ctx: Ctx, interval: "month" | "year" = "month"): Promise<{ url: string }> {
   await simulate();
   assertAdmin(ctx);
   const { createCheckout } = await import("@/lib/billing");
-  return createCheckout(ctx.orgId, ctx.userId);
+  return createCheckout(ctx.orgId, ctx.userId, interval);
 }
 
 /** Returns a Stripe Customer Portal URL (cards, invoices, one-click cancel). */

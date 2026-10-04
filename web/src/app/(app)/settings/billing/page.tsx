@@ -20,14 +20,14 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
   const sp = await searchParams;
   const isAdmin = ctx.role === "admin";
   const paid = b.plan === "pro" || b.plan === "enterprise";
-  const over = Math.max(0, b.usedReviews - b.includedReviews);
-  const estimate = b.seats * b.pricePerSeatCents + over * b.overagePerReviewCents;
+  const monthly = b.seats * b.pricePerSeatCents;
   const trialDays = b.trialDaysLeft;
   const free = b.plan === "free" && b.billingStatus === "none";
   // Free is offered when nothing is being paid for and the org is one person.
   const canGoFree = isAdmin && b.seats <= 1;
   const paused = (b.plan === "trial" && trialDays === 0) || (b.billingStatus === "canceled" && b.plan !== "trial");
-  const choices = isAdmin && <span className="flex flex-wrap gap-2"><CheckoutButton />{canGoFree && <ContinueFreeButton />}</span>;
+  const annual = b.pricePerSeatAnnualCents !== null && <CheckoutButton interval="year" label={`Annual: ${formatMoney(b.pricePerSeatAnnualCents)} a seat a month`} />;
+  const choices = isAdmin && <span className="flex flex-wrap gap-2"><CheckoutButton />{annual}{canGoFree && <ContinueFreeButton />}</span>;
   const freeNote = b.seats <= 1 ? " Or continue on Free: one person, 50 reviews a month." : " Free is for one person, so it needs the other members removed first.";
 
   return (
@@ -44,7 +44,12 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
         )}
         {free && b.usedReviews >= b.includedReviews && (
           <Alert variant="warning" title={`This month's ${b.includedReviews} free reviews are used`} action={isAdmin && <CheckoutButton />}>
-            Reviews resume on {formatDate(b.periodEnd)}. The Team plan has 50 reviews per member and keeps going after that.
+            Reviews resume on {formatDate(b.periodEnd)}. The Team plan has 50 reviews a month for each member, shared by the team.
+          </Alert>
+        )}
+        {b.plan === "pro" && b.usedReviews >= b.includedReviews && (
+          <Alert variant="warning" title={`This month's ${b.includedReviews} reviews are used`}>
+            Reviews resume on {formatDate(b.periodEnd)}. Nothing extra is charged. To keep going now, add a member: each seat adds 50 reviews.
           </Alert>
         )}
         {b.billingStatus === "past_due" && <Alert variant="danger" title="The last payment failed" action={isAdmin && <PortalButton label="Update card" />}>Update your card to keep reviews running.</Alert>}
@@ -64,12 +69,12 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
               ) : (
               <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-base">
                 <dt className="text-muted">Seats</dt><dd className="tabular-nums text-fg">{b.seats} × {formatMoney(b.pricePerSeatCents)} / month</dd>
-                <dt className="text-muted">Included reviews</dt><dd className="tabular-nums text-fg">{b.includedReviews} a month (50 per seat)</dd>
-                <dt className="text-muted">After that</dt><dd className="tabular-nums text-fg">{formatMoney(b.overagePerReviewCents)} per review</dd>
-                {paid && <><dt className="text-muted">This month so far</dt><dd className="tabular-nums text-fg">{formatMoney(estimate)}</dd></>}
+                <dt className="text-muted">Included reviews</dt><dd className="tabular-nums text-fg">{b.includedReviews} a month (50 per seat, shared)</dd>
+                <dt className="text-muted">After that</dt><dd className="text-fg">Reviews pause until the 1st. No per-review charges.</dd>
+                {paid && <><dt className="text-muted">Your bill</dt><dd className="tabular-nums text-fg">{formatMoney(monthly)} a month</dd></>}
               </dl>
               )}
-              {!paid && isAdmin && <CheckoutButton className="self-start" />}
+              {!paid && isAdmin && <span className="flex flex-wrap gap-2"><CheckoutButton />{annual}</span>}
               {paid && isAdmin && <p className="text-sm text-muted">Change seats, update the card or cancel in one click from Manage billing.</p>}
             </div>
           </Card>

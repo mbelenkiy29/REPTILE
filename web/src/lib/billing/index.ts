@@ -1,5 +1,6 @@
 // Stripe billing: Checkout to subscribe, the Customer Portal for changes and one-click cancel,
-// webhooks as the source of truth for plan status, and a Meter for reviews past the included amount.
+// webhooks as the source of truth for plan status. Flat pricing: the bill is seats × the seat price, nothing
+// metered. Each plan has a monthly review allowance; past it, reviews pause until the 1st (never an overage).
 // Test-mode keys until /replica-deploy. Nothing here trusts the client.
 import Stripe from "stripe";
 import { and, count, eq, isNull, sql as dsql } from "drizzle-orm";
@@ -7,8 +8,12 @@ import { db, schema as s } from "@/db";
 
 export const PRICING = {
   seatCents: Number(process.env.PRICE_SEAT_CENTS ?? 2400),
-  overageCents: Number(process.env.PRICE_OVERAGE_CENTS ?? 80),
+  /** Annual billing, shown per month (billed yearly: 12 × this). */
+  seatAnnualCents: Number(process.env.PRICE_SEAT_ANNUAL_CENTS ?? 2000),
 };
+
+/** Admins get one email per month when usage reaches this share of the allowance. */
+export const ALLOWANCE_WARNING = 0.8;
 
 /** The Free plan: one person, a monthly review allowance, no card. Past the allowance reviews pause until the 1st. */
 export const FREE_PLAN = { members: 1, reviewsPerMonth: 50 } as const;
@@ -45,11 +50,14 @@ async function seatCount(orgId: string) {
   return Math.max(1, Number(n));
 }
 
-/** Checkout for the Team plan: per-seat price plus the metered overage price. */
-export async function createCheckout(orgId: string, userId: string): Promise<{ url: string }> {
-  const seatPrice = process.env.STRIPE_PRICE_SEAT;
-  const overagePrice = process.env.STRIPE_PRICE_OVERAGE;
-  if (!seatPrice || !overagePrice) throw new Error("Billing isn't set up on this server yet (Stripe price ids are missing).");
+export type Interval = "month" | "year";
+const seatPriceIds = () => [process.env.STRIPE_PRICE_SEAT, process.env.STRIPE_PRICE_SEAT_ANNUAL].filter(Boolean) as string[];
+export const annualConfigured = () => !!process.env.STRIPE_PRICE_SEAT_ANNUAL;
+
+/** Checkout for the Team plan: one per-seat price, monthly or annual. Nothing metered. */
+export async function createCheckout(orgId: string, userId: string, interval: Interval = "month"): Promise<{ url: string }> {
+  const seatPrice = interval === "year" ? process.env.STRIPE_PRICE_SEAT_ANNUAL : process.env.STRIPE_PRICE_SEAT;
+  if (!seatPrice) throw new Error("Billing isn't set up on this server yet (the Stripe seat price id is missing).");
   const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, orgId));
   if (org.stripeSubscriptionId && org.billingStatus !== "canceled") return createPortal(orgId);
   const customer = await ensureCustomer(orgId, userId);
@@ -57,7 +65,7 @@ export async function createCheckout(orgId: string, userId: string): Promise<{ u
     mode: "subscription",
     customer,
     client_reference_id: orgId,
-    line_items: [{ price: seatPrice, quantity: await seatCount(orgId) }, { price: overagePrice }],
+    line_items: [{ price: seatPrice, quantity: await seatCount(orgId) }],
     subscription_data: { metadata: { orgId } },
     success_url: `${appUrl()}/settings/billing?upgraded=1`,
     cancel_url: `${appUrl()}/settings/billing`,
@@ -97,7 +105,7 @@ export async function updateSeats(orgId: string) {
   const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, orgId));
   if (!org.stripeSubscriptionId || org.billingStatus === "canceled") return;
   const sub = await stripe().subscriptions.retrieve(org.stripeSubscriptionId);
-  const item = sub.items.data.find((i) => i.price.id === process.env.STRIPE_PRICE_SEAT);
+  const item = sub.items.data.find((i) => seatPriceIds().includes(i.price.id));
   const qty = await seatCount(orgId);
   if (item && item.quantity !== qty) await stripe().subscriptionItems.update(item.id, { quantity: qty, proration_behavior: "create_prorations" });
 }
@@ -191,13 +199,15 @@ export async function applyStripeEvent(event: Stripe.Event): Promise<boolean> {
   }
 }
 
-/* ───────────── usage metering (worker: report-usage) ───────────── */
+/* ───────────── usage and the monthly allowance ───────────── */
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Org = Pick<typeof s.organizations.$inferSelect, "id" | "plan" | "billingStatus" | "includedReviewsPerSeat">;
 
 /**
  * One usage row per completed review (the worker calls this in the transaction that completes the review).
- * Only reviews done on the paid plan are billable: trial and free reviews never reach Stripe, even after an upgrade.
+ * billable marks reviews done on the paid plan; only those count toward the Team allowance, so reviews used on a trial
+ * never eat into the first paid month.
  */
 export async function recordUsage(tx: Tx, org: Pick<typeof s.organizations.$inferSelect, "id" | "plan">, reviewId: string, credits: number) {
   await tx.insert(s.usageEvents).values({
@@ -205,28 +215,15 @@ export async function recordUsage(tx: Tx, org: Pick<typeof s.organizations.$infe
   }).onConflictDoNothing();
 }
 
-/** Report this month's reviews past the included amount to the Stripe Meter. Idempotent per usage row. */
-export async function reportUsage(log = console.log) {
-  if (!billingConfigured() || !process.env.STRIPE_METER_EVENT) return 0;
-  const rows = await db.execute<{ id: string; org_id: string; customer: string; over: boolean }>(dsql`
-    with month as (
-      select u.id, u.org_id, u.reported_to_stripe_at, o.stripe_customer_id as customer,
-             row_number() over (partition by u.org_id order by u.created_at) as n,
-             (select count(*) from memberships m where m.org_id = u.org_id) * o.included_reviews_per_seat as included
-      from usage_events u join organizations o on o.id = u.org_id
-      where u.period_start = date_trunc('month', now() at time zone 'utc')::date
-        and u.billable and o.plan = 'pro' and o.stripe_customer_id is not null)
-    select id, org_id, customer, n > included as over from month where reported_to_stripe_at is null`);
-  let sent = 0;
-  for (const r of rows) {
-    if (r.over) {
-      await stripe().billing.meterEvents.create(
-        { event_name: process.env.STRIPE_METER_EVENT, payload: { stripe_customer_id: r.customer, value: "1" }, identifier: `usage-${r.id}` },
-      );
-      sent++;
-    }
-    await db.update(s.usageEvents).set({ reportedToStripeAt: new Date().toISOString() }).where(eq(s.usageEvents.id, r.id));
-  }
-  if (sent) log(`[billing] reported ${sent} overage reviews`);
-  return sent;
+export const periodStart = (d = new Date()) => d.toISOString().slice(0, 8) + "01";
+
+/** This month's reviews used and included for the org. Free: 50 for one person. Team: 50 per seat, pooled. */
+export async function allowance(org: Org, conn: typeof db | Tx = db): Promise<{ used: number; included: number; seats: number }> {
+  const [{ n }] = await conn.select({ n: count() }).from(s.memberships).where(eq(s.memberships.orgId, org.id));
+  const seats = Number(n);
+  const team = org.plan === "pro";
+  const [{ used }] = await conn.select({ used: dsql<number>`coalesce(sum(${s.usageEvents.credits}), 0)::int` }).from(s.usageEvents)
+    .where(and(eq(s.usageEvents.orgId, org.id), eq(s.usageEvents.periodStart, periodStart()), team ? eq(s.usageEvents.billable, true) : undefined));
+  const included = onFreePlan(org) ? FREE_PLAN.reviewsPerMonth : Math.max(1, seats) * org.includedReviewsPerSeat;
+  return { used: Number(used), included, seats };
 }

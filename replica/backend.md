@@ -13,7 +13,7 @@ only been exercised through fakes and offline signature checks. The first real r
 | piece | where | what it does |
 | --- | --- | --- |
 | web | Vercel (Next.js 16) | dashboard, Auth.js, server actions, `/api/webhooks/github`, `/api/webhooks/stripe`, `/api/v1/*` |
-| worker | Fly.io (`npm run worker`) | pg-boss queues: review-pr, index-repo, answer-thread, send-email; schedules: sync-reactions (15 min), report-usage (hourly), learn-rules, cleanup, billing-emails (daily, UTC) |
+| worker | Fly.io (`npm run worker`) | pg-boss queues: review-pr, index-repo, answer-thread, send-email; schedules: sync-reactions (15 min), learn-rules, cleanup, billing-emails (daily, UTC) |
 | database | Neon or Supabase Postgres 16 | app data, job queue (`pgboss` schema), code embeddings (pgvector) |
 
 ## Setup: accounts you create
@@ -36,9 +36,9 @@ Claude never creates these or handles live keys. Put values in `web/.env.local` 
    - No marketplace review is needed for a private or unlisted app; listing on the GitHub Marketplace has its own review (optional).
 3. **Anthropic API key** → `ANTHROPIC_API_KEY` (console.anthropic.com). Set a monthly spend limit there first.
 4. **Voyage AI key** → `VOYAGE_API_KEY` (dash.voyageai.com).
-5. **Stripe (test mode):** create a product "Team" with two prices: a per-seat monthly price (`STRIPE_PRICE_SEAT`) and a metered
-   price attached to a Meter whose event name you set as `STRIPE_METER_EVENT` (`STRIPE_PRICE_OVERAGE`). Enable the Customer Portal
-   with cancellation allowed. Add a webhook endpoint `<APP_URL>/api/webhooks/stripe` for `checkout.session.completed`,
+5. **Stripe (test mode):** create the product and the two licensed seat prices in `launch/pricing.md` (monthly
+   `STRIPE_PRICE_SEAT`, optional annual `STRIPE_PRICE_SEAT_ANNUAL`; flat pricing since /replica-launch, nothing metered). Enable
+   the Customer Portal with cancellation allowed. Add a webhook endpoint `<APP_URL>/api/webhooks/stripe` for `checkout.session.completed`,
    `customer.subscription.created|updated|deleted`, `invoice.payment_failed` → `STRIPE_WEBHOOK_SECRET`. Test locally with
    `stripe listen --forward-to localhost:3000/api/webhooks/stripe` and card 4242 4242 4242 4242.
 6. **Resend:** verify your sending domain (SPF/DKIM records; replica-deploy covers DNS) → `RESEND_API_KEY`, `EMAIL_FROM`.
@@ -77,13 +77,13 @@ The dev flags are refused unless `APP_URL` is localhost.
 
 ## Payments (Stripe, test mode)
 
-- [x] Checkout for the Team plan (seat price × member count + metered overage). No card forms.
+- [x] Checkout for the Team plan (seat price × member count, monthly or annual; nothing metered). No card forms.
 - [x] Customer Portal for card, invoices and **one-click cancel**.
 - [x] Webhooks verify the signature, store the event id first (a replay is a no-op), and forget it when the handler fails so
   Stripe's retry is processed. Handled: `checkout.session.completed`, `customer.subscription.created|updated|deleted`,
   `invoice.payment_failed` (admins emailed).
 - [x] Plan status lives in Postgres, written only by webhooks; the worker reads it (ended trial or canceled → reviews pause, nothing billed).
-- [x] Seat quantity follows membership changes; reviews beyond the included amount go to the Stripe Meter hourly (idempotent per review).
+- [x] Seat quantity follows membership changes; past the month's allowance reviews pause until the 1st (no overage), with one email to admins at 80%.
 
 ## Email and jobs
 
@@ -99,7 +99,7 @@ The dev flags are refused unless `APP_URL` is localhost.
 | GitHub App | REST v3 via `@octokit/app` | see step 2 (fewest that work) | none for a private/unlisted app; Marketplace listing optional | 5,000 req/h per installation (more on large orgs). One review call per run, cached installation tokens, ≤40 directories probed for config |
 | Claude | Messages API, `claude-opus-5-5` | API key | none | SDK retries 429/5xx (3×); 3 review calls in parallel per PR, 4 PRs per worker; prompt caching on the system prompt and repository context; refusal fallbacks (`fallbacks: "default"`) |
 | Voyage AI | REST `/v1/embeddings`, `voyage-code-3` | API key | none | batches of 64, backoff on 429/5xx; only changed chunks are embedded |
-| Stripe | Checkout, Portal, Webhooks, Meter events | secret key (restricted key recommended) | live mode needs account activation (business details) | idempotency keys on customer creation and meter events |
+| Stripe | Checkout, Portal, Webhooks | secret key (restricted key recommended) | live mode needs account activation (business details) | idempotency keys on customer creation |
 | Resend | Emails API | API key | domain verification (DNS) | 5 sign-in emails per address per hour; 30 invites per org per hour |
 | Google | OAuth (openid, email, profile) | client id/secret | none for these scopes | — |
 | Jira, Linear, Slack, Notion, Datadog | **not built** | — | Slack and Atlassian app reviews take 1–4 weeks if listed publicly; start early if you build these | S14 says "isn't set up" instead of pretending |

@@ -5,6 +5,8 @@ const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"
 
 export function proxy(req: NextRequest) {
   if (SESSION_COOKIES.some((c) => req.cookies.get(c))) return NextResponse.next();
+  // The landing page is public; it sends signed-in users on to their repositories itself.
+  if (req.nextUrl.pathname === "/") return NextResponse.next();
   const url = new URL("/login", req.url);
   const next = req.nextUrl.pathname + req.nextUrl.search;
   if (next !== "/") url.searchParams.set("next", next);
@@ -12,6 +14,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except the sign-in page, the design reference, invite links, API routes and static files.
-  matcher: ["/((?!login|design|invite|api|_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  // Everything except the sign-in page, the design reference, invite links, API routes, landing images and static files.
+  matcher: ["/((?!login|design|invite|api|landing/|_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };

@@ -13,7 +13,7 @@ describe.skipIf(!url)("Stripe billing", async () => {
   const { closeDb, db, schema: s } = await import("@/db");
   const { seedId } = await import("@/db/ids");
   const { setJobSender } = await import("@/lib/jobs");
-  const { applyStripeEvent, handleStripeWebhook, recordUsage, reportUsage, stripe, SignatureError } = await import("./index");
+  const { allowance, applyStripeEvent, handleStripeWebhook, recordUsage, SignatureError } = await import("./index");
   const { createOrganization } = await import("@/lib/data");
   const org = seedId("o_side");
   const jobs: { name: string; data: unknown }[] = [];
@@ -64,36 +64,23 @@ describe.skipIf(!url)("Stripe billing", async () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("BUG-003 reviews done during the trial are never billed as overage after upgrading", async () => {
-    process.env.STRIPE_METER_EVENT = "countersign_review";
-    const sent: unknown[] = [];
-    const meter = stripe().billing.meterEvents as unknown as { create: (x: unknown) => Promise<object> };
-    const realCreate = meter.create;
-    meter.create = async (x) => { sent.push(x); return {}; };
-    try {
-      const { id } = await createOrganization(seedId("u_lena"), "Trial then paid");
-      const [o] = await db.select().from(s.organizations).where(eq(s.organizations.id, id));
-      expect(o.plan).toBe("trial");
-      // 55 reviews on the trial (1 seat × 50 included would put 5 over).
-      for (let i = 0; i < 55; i++) {
-        const [rev] = await db.insert(s.reviews).values(await reviewRow(id, i)).returning({ id: s.reviews.id });
-        await db.transaction((tx) => recordUsage(tx, o, rev.id, 1));
-      }
-      await reportUsage(() => {});
-      await db.update(s.organizations).set({ plan: "pro", billingStatus: "active", trialEndsAt: null, stripeCustomerId: "cus_trial_then_paid" }).where(eq(s.organizations.id, id));
-      expect(await reportUsage(() => {})).toBe(0);
-      expect(sent).toHaveLength(0);
-      // Paid reviews: the first 50 are included, the 51st is overage.
-      const paid = { ...o, plan: "pro" as const };
-      for (let i = 0; i < 51; i++) {
-        const [rev] = await db.insert(s.reviews).values(await reviewRow(id, 100 + i)).returning({ id: s.reviews.id });
-        await db.transaction((tx) => recordUsage(tx, paid, rev.id, 1));
-      }
-      expect(await reportUsage(() => {})).toBe(1);
-    } finally {
-      meter.create = realCreate;
-      delete process.env.STRIPE_METER_EVENT;
+  it("BUG-003 reviews done during the trial never use up the first paid month's allowance", async () => {
+    const { id } = await createOrganization(seedId("u_lena"), "Trial then paid");
+    const [o] = await db.select().from(s.organizations).where(eq(s.organizations.id, id));
+    expect(o.plan).toBe("trial");
+    // 55 reviews on the trial (more than one seat's 50).
+    for (let i = 0; i < 55; i++) {
+      const [rev] = await db.insert(s.reviews).values(await reviewRow(id, i)).returning({ id: s.reviews.id });
+      await db.transaction((tx) => recordUsage(tx, o, rev.id, 1));
     }
+    const paid = { ...o, plan: "pro" as const, billingStatus: "active" as const };
+    expect(await allowance(paid)).toEqual({ used: 0, included: 50, seats: 1 });
+    // Paid reviews count: 50 per seat, pooled; there is no per-review charge to report anywhere.
+    for (let i = 0; i < 3; i++) {
+      const [rev] = await db.insert(s.reviews).values(await reviewRow(id, 100 + i)).returning({ id: s.reviews.id });
+      await db.transaction((tx) => recordUsage(tx, paid, rev.id, 1));
+    }
+    expect(await allowance(paid)).toEqual({ used: 3, included: 50, seats: 1 });
   });
 
   /** A completed review on a throwaway PR in the given org (usage rows reference reviews). */

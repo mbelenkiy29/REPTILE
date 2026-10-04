@@ -1,0 +1,17 @@
+{
+  "_about": "Countersign is a web app; there is no iOS or Android build, so nothing is submitted to the App Store or Google Play yet. This copy is written to the stores' limits so it is ready if a mobile companion ships, and the same text serves directory listings (GitHub Marketplace, Product Hunt). avoid comes from replica/brand.json.",
+  "avoid": ["Greptile", "Greploop", "Reptile"],
+  "app_store": {
+    "name": "Countersign: Code Review",
+    "subtitle": "A second reviewer on every PR",
+    "promotional_text": "One price per seat, nothing metered: 50 reviews a month per seat, shared by the team. When they run out, reviews pause. No per-review charges.",
+    "description": "Countersign reviews your team's pull requests against the whole codebase and comments on what could break.\n\nHow it works:\n- Install the GitHub App and choose the repositories it can read. It comments on pull requests and never pushes code.\n- Open a pull request. Countersign posts a summary, inline comments ranked by severity, and a check.\n- React with thumbs up or down to tune future reviews, and write rules in plain English or point it at your CLAUDE.md and AGENTS.md.\n\nPricing you can predict:\n- One price per seat. Nothing is metered.\n- 50 reviews a month per seat, shared by the team. When they run out, reviews pause until the 1st, and admins hear about it at 80%.\n- Cancel in one click from Billing.\n\nAlso included:\n- Re-reviews that remember: fixed findings are marked addressed and open ones carry forward.\n- A ready-made fix prompt on every comment, to paste into your coding agent.\n- Suggested rules learned from your team's own review comments.\n\nSolo is free for one person, 50 reviews a month. Team is $24 a seat a month, or $20 billed annually. Every new team starts with 14 days of Team, no card.",
+    "keywords": "pull request,github,ai,developer,bugs,lint,team,bot,static analysis,merge,security,ci",
+    "whats_new": "Flat pricing: one price per seat, no per-review charges."
+  },
+  "google_play": {
+    "title": "Countersign: Code Review",
+    "short_description": "AI review for GitHub pull requests, with one flat price per seat.",
+    "full_description": "Countersign reviews your team's pull requests against the whole codebase and comments on what could break.\n\nInstall the GitHub App and choose the repositories it can read. It comments on pull requests and never pushes code. Each review posts a summary, inline comments ranked by severity, and a check. Thumbs up or down tune future reviews.\n\nOne price per seat, nothing metered: 50 reviews a month per seat, shared by the team. When they run out, reviews pause until the 1st. Cancel in one click.\n\nSolo is free for one person. Team is $24 a seat a month, or $20 billed annually."
+  }
+}

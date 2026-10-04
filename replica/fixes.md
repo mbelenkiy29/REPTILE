@@ -105,7 +105,12 @@ Ranked by evidence times cost to build. All evidence is thin (one source).
 | F8 | **Speed target**: post a first-pass summary within 2 minutes and the full review after; show time-to-review in analytics | M | /replica-build | slow 2 |
 
 Pricing itself (seats, included reviews, the $1 overage that REPTILE currently copies in `architecture.md`) goes to
-`/replica-launch`. The complaints point at three things to decide there: no per-review overage or a cheap one, no
+`/replica-launch`.
+
+**Status after /replica-launch (2026-10-04):** F1 was solved with flat pricing instead of a spend cap. Nothing is
+metered, reviews pause at the monthly allowance, and admins are emailed at 80% (built and tested). F3 is partly done:
+Manage billing opens Stripe's Customer Portal for cancelling and card removal, which still has to be configured in
+Stripe. F2, F4 (in part), F5, F6, F7 (the test) and F8 are still open. See `launch/pricing.md`. The complaints point at three things to decide there: no per-review overage or a cheap one, no
 seat for occasional contributors, and a free tier at least as good as Greptile's 50 reviews a month.
 
 Not in the plan, too thin or too expensive for now: Gitea support (L, 1 request; GitLab is already a could-have),

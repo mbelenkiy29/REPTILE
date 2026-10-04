@@ -37,6 +37,13 @@ export const TEMPLATES: Record<string, (v: Vars) => Rendered> = {
       `The card on file for ${v.org} was declined. Reviews keep running for now; update the card to avoid an interruption.`,
     ], { label: "Update billing", url: v.url }),
   }),
+  "allowance-warning": (v) => ({
+    subject: `${v.org} has used ${v.used} of ${v.included} reviews this month`,
+    ...layout(`${v.used} of ${v.included} reviews used`, [
+      `${v.org} has used ${v.used} of this month's ${v.included} reviews.`,
+      "When they run out, reviews pause until the 1st. Nothing extra is charged. To keep going, add a seat for 50 more reviews.",
+    ], { label: "See usage", url: v.url }),
+  }),
   "trial-ending": (v) => ({
     subject: `Your Countersign trial ends in ${v.days} days`,
     ...layout(`${v.org}'s trial ends in ${v.days} days`, [

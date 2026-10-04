@@ -72,7 +72,7 @@ export function StatTile({
 }
 
 /** `overNote` explains what happens past the included amount; it depends on the plan (null shows nothing). */
-export function UsageMeter({ label, used, included, overNote = (n) => `${n} over the included amount, billed per review.` }: {
+export function UsageMeter({ label, used, included, overNote = (n) => `${n} over this month's allowance.` }: {
   label: string; used: number; included: number; overNote?: ((over: string) => string) | null;
 }) {
   const pct = included ? (used / included) * 100 : 0;

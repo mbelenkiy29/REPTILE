@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { checkout, chooseFree, portal } from "./actions";
 
-export function CheckoutButton({ className }: { className?: string }) {
+export function CheckoutButton({ className, interval = "month", label = "Choose the Team plan" }: { className?: string; interval?: "month" | "year"; label?: string }) {
   const [pending, start] = React.useTransition();
   return (
-    <Button size="sm" className={className} loading={pending} onClick={() => start(async () => {
-      const r = await checkout();
+    <Button size="sm" variant={interval === "year" ? "secondary" : "primary"} className={className} loading={pending} onClick={() => start(async () => {
+      const r = await checkout(interval);
       if (r && !r.ok) toast.error(r.error);
     })}>
-      Choose the Team plan
+      {label}
     </Button>
   );
 }

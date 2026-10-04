@@ -36,7 +36,7 @@ Sequence diagram (mermaid) in summary,review,should,yes,yes,
 What we checked section when no issues,review,should,yes,yes,
 Analytics: PRs reviewed / addressed rate / bugs caught / merge time / reaction ratio,analytics,should,yes,yes,"S10 tiles, charts and per-repo table computed from review data (seed data until backend)"
 Members and Admin/Member roles,team,should,yes,yes,"invite emails, accept page (email must match), last-admin guards, seat sync to Stripe"
-Billing: per-seat plan + included reviews + metered overage (Stripe),billing,should,yes,yes,"Checkout, Customer Portal (one-click cancel), webhooks, Meter events; test mode (needs your keys; see backend.md)"
+Billing: per-seat plan + included reviews (original: + metered overage),billing,should,yes,yes,"Checkout (monthly or annual), Customer Portal (one-click cancel), webhooks; flat pricing, no overage: reviews pause past the allowance (launch/pricing.md)"
 Free tier and 14-day trial,billing,should,yes,yes,"14-day trial with reminder and pause; then Free (one person, 50 reviews a month, no card) or Team; S13 Continue on Free"
 Review history list,repos,should,yes,yes,"S11 filters, search, pages, auto-refresh"
 Fix with your Agent deep link per comment + Fix All,review,could,yes,partial,each comment and the summary link to prompt pages (sign-in required); no deep links into specific agents
@@ -55,9 +55,9 @@ GitHub's App install and OAuth consent pages,onboarding,skip,yes,skip,owned by G
 Customer logos benchmarks mascot and T-Rex tier name,brand,skip,yes,skip,their brand and claims
 SOC 2 / air-gapped self-host Helm distribution,enterprise,skip,yes,skip,certification and ops not features; revisit later
 AWS Marketplace listing and partner deals,distribution,skip,yes,skip,partner deals
-Hard monthly spend cap with 80% warning and paused-on-cap PR summary,billing,should,no,no,"F1 in fixes.md; price/billing complaints (thin, Reddit only)"
+Hard monthly spend cap with 80% warning and paused-on-cap PR summary,billing,should,no,yes,"F1 in fixes.md, solved by flat pricing instead of a cap: nothing is metered, reviews pause at the allowance, admins emailed at 80% (/replica-launch)"
 Docs-only and trivial PRs get a free light pass (not counted as a review),billing,should,no,no,F2 in fixes.md
-One-click cancel now in Billing plus card removal via Stripe portal,billing,should,no,no,F3 in fixes.md
+One-click cancel now in Billing plus card removal via Stripe portal,billing,should,no,partial,"F3 in fixes.md; Manage billing opens the Stripe Customer Portal (cancel, card removal); configure the portal per launch/pricing.md"
 "Bounded re-reviews: only new changes, keep prior findings, post done, max 3 automatic rounds",review,should,no,partial,F4 in fixes.md; unresolved findings already carried across pushes
 Show reviewed commit SHA in summary and discard reviews whose head moved,review,should,no,no,F5 in fixes.md
 Explain the confidence score with its reasons; never present it as approval,review,should,no,no,F6 in fixes.md

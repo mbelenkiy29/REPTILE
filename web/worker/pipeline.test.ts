@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql as dsql } from "drizzle-orm";
 
 const url = process.env.TEST_DATABASE_URL;
 if (url) process.env.DATABASE_URL = url;
@@ -174,6 +174,34 @@ describe.skipIf(!url)("worker pipeline", async () => {
       } finally {
         await setOrg({ plan: "pro", billingStatus: "active" });
         await db.insert(s.memberships).values({ orgId: contoso, userId: seedId("u_jordan"), role: "member" }).onConflictDoNothing();
+      }
+    });
+
+    it("the Team plan pauses at 50 reviews per seat without charging, and warns admins once at 80%", async () => {
+      const contoso = seedId("o_contoso");
+      const run = async (n: number, sha: string) => runReview((await queueReview(await openPr(n, sha, file1, patch1), "opened", "lenaf"))!, attempt);
+      const period = new Date().toISOString().slice(0, 8) + "01";
+      const fill = (n: number, billable: boolean) => db.insert(s.usageEvents).values(Array.from({ length: n }, () => ({ orgId: contoso, credits: 1, periodStart: period, billable })));
+      const warnings = () => jobs.filter((j) => j.name === "send-email" && (j.data as { template: string }).template === "allowance-warning");
+      await db.delete(s.usageEvents).where(eq(s.usageEvents.orgId, contoso));
+      await db.execute(dsql`delete from rate_limits where key like ${`allowance-warning:${contoso}:%`}`);
+      try {
+        // Contoso: 2 seats, so 100 a month. Trial-era (non-billable) reviews don't count.
+        await fill(100, false);
+        await fill(79, true);
+        jobs.length = 0;
+        expect((await run(40, "team1")).result).toBe("completed");
+        const sent = warnings().length;
+        expect(sent).toBeGreaterThan(0);
+        expect((warnings()[0].data as { vars: Record<string, string> }).vars).toMatchObject({ used: "80", included: "100" });
+        expect((await run(41, "team2")).result).toBe("completed");
+        expect(warnings()).toHaveLength(sent);
+        await fill(19, true);
+        const paused = await run(42, "team3");
+        expect(paused.result).toMatch(/100 Team reviews are used/);
+        expect(paused.result).toMatch(/nothing is charged per review/);
+      } finally {
+        await db.delete(s.usageEvents).where(eq(s.usageEvents.orgId, contoso));
       }
     });
 
