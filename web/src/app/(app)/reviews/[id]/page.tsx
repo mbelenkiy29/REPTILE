@@ -135,7 +135,7 @@ export default async function ReviewPage({ params }: PageProps<"/reviews/[id]">)
                         )}
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
                           {f.ruleId && (
-                            <span>Rule: <Link className="text-accent hover:underline" href="/rules">{r.rules.find((x) => x.id === f.ruleId)?.text.slice(0, 60) ?? "custom rule"}…</Link></span>
+                            <span>Rule: <Link className="text-accent underline underline-offset-2" href="/rules">{r.rules.find((x) => x.id === f.ruleId)?.text.slice(0, 60) ?? "custom rule"}…</Link></span>
                           )}
                           <span aria-label={`${f.thumbsUp} thumbs up, ${f.thumbsDown} thumbs down`}>👍 {f.thumbsUp} · 👎 {f.thumbsDown}</span>
                           <Link className="text-accent hover:underline" href={`/fix/${f.id}`}>Fix with your agent</Link>
