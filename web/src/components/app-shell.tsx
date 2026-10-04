@@ -158,7 +158,8 @@ function DevPanel({ sim, collapsed }: { sim: "none" | "slow" | "error"; collapse
         disabled={pending}
         onClick={() =>
           start(async () => {
-            await resetData();
+            const url = await resetData();
+            if (url) window.location.assign(url);
           })
         }
         className="mt-1.5 text-accent underline-offset-2 hover:underline disabled:opacity-50"

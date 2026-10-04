@@ -25,7 +25,28 @@ export function fakeMode() {
 
 async function devFake(): Promise<GitHost> {
   const { FakeGitHub } = await import("./fake");
-  const f = new FakeGitHub();
+  // Local demo: any pull request it doesn't know gets a small made-up diff, so re-runs work without GitHub.
+  class DevFake extends FakeGitHub {
+    private ensure(repo: string, number: number) {
+      const key = `${repo}#${number}`;
+      if (this.prs.has(key)) return;
+      const content = ["export function applyDiscount(total: number, pct: number) {", "  // BUG: percentage is applied twice", "  return total - total * pct - total * pct;", "}", ""].join("\n");
+      const sha = `demo${number}`;
+      this.prs.set(key, { number, title: `Pull request #${number}`, body: null, authorLogin: "demo", baseBranch: "main", baseSha: "base", headSha: sha, isDraft: false,
+        labels: [], state: "open", merged: false, url: `https://github.com/${repo}/pull/${number}`, repo,
+        files: [{ filename: "src/discount.ts", status: "added", additions: 4, deletions: 0, patch: ["@@ -0,0 +1,4 @@", ...content.split("\n").slice(0, 4).map((l) => "+" + l)].join("\n") }] });
+      this.files.set(`${repo}@${sha}:src/discount.ts`, content);
+    }
+    async getPullRequest(i: number, repo: string, n: number) { this.ensure(repo, n); return super.getPullRequest(i, repo, n); }
+    async listPullRequestFiles(i: number, repo: string, n: number) { this.ensure(repo, n); return super.listPullRequestFiles(i, repo, n); }
+    async getFile(i: number, repo: string, path: string, ref: string) {
+      const hit = await super.getFile(i, repo, path, ref);
+      if (hit !== null || !ref.startsWith("demo")) return hit;
+      this.ensure(repo, Number(ref.slice(4)));
+      return super.getFile(i, repo, path, ref);
+    }
+  }
+  const f = new DevFake();
   f.installations = [
     { externalInstallationId: 61000001, accountLogin: "jordanlee", accountType: "User", repositorySelection: "selected",
       repositories: [{ providerRepoId: 9001, fullName: "jordanlee/dotfiles", defaultBranch: "main", private: false }] },

@@ -7,7 +7,6 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ProviderCard } from "@/components/ui/provider-card";
 import { Steps } from "./steps";
-import { startGithubInstall } from "./actions";
 
 export const metadata: Metadata = { title: "Connect a code host" };
 
@@ -41,14 +40,12 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
         {!isAdmin && <AdminOnlyNotice what="code host connections" />}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <form action={startGithubInstall} className="contents">
-            <ProviderCardSubmit
-              name="GitHub"
-              description="Pull requests on github.com."
-              connected={github.map((g) => g.accountLogin)}
-              disabled={!isAdmin}
-            />
-          </form>
+          <ProviderCardLink
+            name="GitHub"
+            description="Pull requests on github.com."
+            connected={github.map((g) => g.accountLogin)}
+            disabled={!isAdmin}
+          />
           <ProviderCard name="GitHub Enterprise" description="Self-hosted GitHub Enterprise Server." state="soon" />
           <ProviderCard name="GitLab" description="Merge requests on gitlab.com." state="soon" />
         </div>
@@ -68,16 +65,21 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
   );
 }
 
-function ProviderCardSubmit({ name, description, connected, disabled }: { name: string; description: string; connected: string[]; disabled: boolean }) {
+/** A plain link: /api/github/install redirects to GitHub (a full navigation, not a client transition). */
+function ProviderCardLink({ name, description, connected, disabled }: { name: string; description: string; connected: string[]; disabled: boolean }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-bg p-4">
       <div>
         <h2 className="text-base font-semibold text-fg">{name}</h2>
         <p className="text-sm text-muted">{connected.length ? `Linked: ${connected.join(", ")}` : description}</p>
       </div>
-      <Button type="submit" size="sm" disabled={disabled} variant={connected.length ? "secondary" : "primary"} className="self-start">
-        {connected.length ? "Add another account" : `Connect ${name}`}
-      </Button>
+      {disabled ? (
+        <Button size="sm" disabled variant="secondary" className="self-start">Connect {name}</Button>
+      ) : (
+        <Button asChild size="sm" variant={connected.length ? "secondary" : "primary"} className="self-start">
+          <a href="/api/github/install">{connected.length ? "Add another account" : `Connect ${name}`}</a>
+        </Button>
+      )}
     </div>
   );
 }

@@ -61,7 +61,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
                   <input type="hidden" name="next" value={next} />
                   {p.github && <Button type="submit" name="provider" value="github" size="lg">Continue with GitHub</Button>}
                   {p.google && <Button type="submit" name="provider" value="google" size="lg" variant="secondary">Continue with Google</Button>}
-                  {p.dev && <Button type="submit" name="provider" value="dev" size="lg" variant="secondary">Continue as the demo user (local only)</Button>}
+                  {p.dev && (
+                    <Button asChild size="lg" variant="secondary">
+                      <a href={`/api/dev/login?next=${encodeURIComponent(next || "/repos")}`}>Continue as the demo user (local only)</a>
+                    </Button>
+                  )}
                 </form>
               )}
               {p.email && (

@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts --reset",
-    "test:db": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres@localhost:5432/reptile_test} vitest run"
+    "test:db": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres@localhost:5432/reptile_test} vitest run",
+    "worker": "tsx --env-file-if-exists=.env.local worker/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

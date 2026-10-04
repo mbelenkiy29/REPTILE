@@ -25,7 +25,7 @@ await click(page.getByRole("button", { name: "Create organization" }));
 await page.waitForURL("**/onboarding");
 step("created org, on onboarding");
 
-await click(page.getByRole("button", { name: "Connect GitHub", exact: true }));
+await click(page.getByRole("link", { name: "Connect GitHub", exact: true }));
 await page.waitForURL("**/onboarding/link**");
 step("install finished (fake), on link step");
 await click(page.getByLabel(/acme-labs/));

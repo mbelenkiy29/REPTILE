@@ -16,7 +16,6 @@ const safeNext = (n: unknown) => (typeof n === "string" && n.startsWith("/") && 
 export async function signIn(formData: FormData) {
   const provider = String(formData.get("provider") ?? "");
   const redirectTo = safeNext(formData.get("next"));
-  if (provider === "dev") redirect(`/api/dev/login?next=${encodeURIComponent(redirectTo)}`);
   if (!["github", "google"].includes(provider)) redirect("/login?error=unknown");
   await authSignIn(provider, { redirectTo });
 }
@@ -124,5 +123,5 @@ export async function resetData() {
   if (!devAllowed() || !devLoginEnabled()) return;
   const { seed } = await import("../../../db/seed");
   await seed({ reset: true });
-  redirect("/api/dev/login?next=/repos");
+  return "/api/dev/login?next=/repos";
 }
