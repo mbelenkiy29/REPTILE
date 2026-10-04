@@ -1,10 +1,13 @@
 // The data layer. Screens and server actions import only from here.
-// This is the fake implementation over an in-memory store. /replica-backend swaps the bodies for
-// Drizzle queries against replica/schema.sql; the signatures and return shapes stay the same.
+// Postgres via Drizzle. Every function takes the caller's Ctx first; every query is scoped to ctx.orgId
+// and every write checks the role. src/lib/data/data.test.ts proves a second org and a member get nothing.
+import { createHash, randomBytes } from "node:crypto";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql as dsql, sum } from "drizzle-orm";
+import { db, schema as s } from "@/db";
+import { enqueue } from "@/lib/jobs";
 import { mergeConfig } from "@/lib/review/config";
 import { DEFAULT_CONFIG } from "@/lib/review/defaults";
 import { simulate } from "./session";
-import { nextId, store } from "./store";
 import {
   ForbiddenError, NotFoundError,
   type ApiKey, type Ctx, type Finding, type Installation, type Integration, type IntegrationKind, type Invite,
@@ -15,33 +18,46 @@ import {
 export * from "./types";
 
 const now = () => new Date().toISOString();
+const iso = (v: string | Date | null | undefined) => (v == null ? null : new Date(v).toISOString());
 
 function assertAdmin(ctx: Ctx) {
   if (ctx.role !== "admin") throw new ForbiddenError();
 }
 
+function isUniqueViolation(e: unknown) {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err?.code === "23505" || err?.cause?.code === "23505";
+}
+
+const toUser = (u: typeof s.users.$inferSelect): User => ({ id: u.id, name: u.name ?? u.email ?? "Unknown", email: u.email ?? "", githubLogin: u.githubLogin ?? "" });
+
 /* ───────────── orgs & onboarding (F01) ───────────── */
 
 export async function createOrganization(userId: string, name: string) {
   await simulate();
-  const s = store();
-  const id = nextId("o");
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || id;
-  s.orgs.push({
-    id, name, slug, plan: "trial", trialEndsAt: new Date(Date.now() + 14 * 864e5).toISOString(),
-    includedReviewsPerSeat: 50, billingStatus: "none", createdAt: now(),
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "org";
+  return db.transaction(async (tx) => {
+    let slug = base;
+    for (let i = 2; (await tx.select({ id: s.organizations.id }).from(s.organizations).where(eq(s.organizations.slug, slug))).length; i++) slug = `${base}-${i}`;
+    const [org] = await tx.insert(s.organizations).values({
+      name, slug, plan: "trial", trialEndsAt: new Date(Date.now() + 14 * 864e5).toISOString(),
+    }).returning({ id: s.organizations.id });
+    await tx.insert(s.memberships).values({ orgId: org.id, userId, role: "admin" });
+    await tx.insert(s.reviewConfigs).values(configRow(org.id, null, DEFAULT_CONFIG, userId));
+    return { id: org.id };
   });
-  s.memberships.push({ orgId: id, userId, role: "admin", createdAt: now() });
-  s.configs.push({ ...DEFAULT_CONFIG, orgId: id, repoId: null, updatedAt: now(), updatedBy: userId });
-  return { id };
 }
 
 export async function listInstallations(ctx: Ctx): Promise<Installation[]> {
   await simulate();
-  return store().installations.filter((i) => i.orgId === ctx.orgId);
+  const rows = await db.select().from(s.installations).where(eq(s.installations.orgId, ctx.orgId));
+  return rows.map((i) => ({
+    id: i.id, orgId: i.orgId, provider: i.provider, externalInstallationId: i.externalInstallationId, accountLogin: i.accountLogin,
+    accountType: i.accountType, suspendedAt: iso(i.suspendedAt), createdAt: iso(i.createdAt)!,
+  }));
 }
 
-/** Accounts the GitHub App was just installed on, waiting to be linked (S04). Fake: a fixed catalogue. */
+/** An app installation the signed-in user can see on GitHub, ready to link (S04). */
 export interface PendingInstallation {
   externalInstallationId: number;
   accountLogin: string;
@@ -49,39 +65,45 @@ export interface PendingInstallation {
   repositories: string[];
 }
 
-const FAKE_INSTALLS: PendingInstallation[] = [
-  { externalInstallationId: 61000001, accountLogin: "jordanlee", accountType: "User", repositories: ["jordanlee/dotfiles", "jordanlee/blog"] },
-  { externalInstallationId: 61000002, accountLogin: "acme-labs", accountType: "Organization", repositories: ["acme-labs/prototype", "acme-labs/ml-pipeline", "acme-labs/design-tokens"] },
-];
-
+/** Installations the user's own GitHub token can see and that aren't linked to any org yet. */
 export async function listPendingInstallations(ctx: Ctx): Promise<PendingInstallation[]> {
   await simulate();
-  const linked = new Set(store().installations.map((i) => i.externalInstallationId));
-  void ctx;
-  return FAKE_INSTALLS.filter((i) => !linked.has(i.externalInstallationId));
+  const { listUserInstallations } = await import("@/lib/github");
+  const visible = await listUserInstallations(ctx.userId);
+  if (!visible.length) return [];
+  const linked = new Set(
+    (await db.select({ id: s.installations.externalInstallationId }).from(s.installations)
+      .where(inArray(s.installations.externalInstallationId, visible.map((v) => v.externalInstallationId)))).map((r) => r.id),
+  );
+  return visible.filter((v) => !linked.has(v.externalInstallationId)).map(({ externalInstallationId, accountLogin, accountType, repositories }) => ({
+    externalInstallationId, accountLogin, accountType, repositories: repositories.map((r) => r.fullName),
+  }));
 }
 
+/** Links an installation the user can see (checked against their GitHub token) and starts indexing its repos. */
 export async function linkInstallation(ctx: Ctx, externalInstallationId: number) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  const pending = FAKE_INSTALLS.find((i) => i.externalInstallationId === externalInstallationId);
-  if (!pending) throw new NotFoundError("That installation");
-  if (s.installations.some((i) => i.externalInstallationId === externalInstallationId))
-    throw new Error(`${pending.accountLogin} is already linked to an organization.`);
-  const id = nextId("ins");
-  s.installations.push({
-    id, orgId: ctx.orgId, provider: "github", externalInstallationId, accountLogin: pending.accountLogin,
-    accountType: pending.accountType, suspendedAt: null, createdAt: now(),
+  const { listUserInstallations } = await import("@/lib/github");
+  const inst = (await listUserInstallations(ctx.userId)).find((i) => i.externalInstallationId === externalInstallationId);
+  if (!inst) throw new NotFoundError("That installation");
+  const repoIds = await db.transaction(async (tx) => {
+    const existing = await tx.select({ orgId: s.installations.orgId }).from(s.installations)
+      .where(and(eq(s.installations.provider, "github"), eq(s.installations.externalInstallationId, externalInstallationId)));
+    if (existing.length) throw new Error(`${inst.accountLogin} is already linked to an organization.`);
+    const [row] = await tx.insert(s.installations).values({
+      orgId: ctx.orgId, provider: "github", externalInstallationId, accountLogin: inst.accountLogin, accountType: inst.accountType,
+      repositorySelection: inst.repositorySelection,
+    }).returning({ id: s.installations.id });
+    if (!inst.repositories.length) return [];
+    const repos = await tx.insert(s.repositories).values(inst.repositories.map((r) => ({
+      orgId: ctx.orgId, installationId: row.id, providerRepoId: r.providerRepoId, fullName: r.fullName,
+      defaultBranch: r.defaultBranch, private: r.private,
+    }))).onConflictDoNothing().returning({ id: s.repositories.id });
+    return repos.map((r) => r.id);
   });
-  for (const fullName of pending.repositories) {
-    s.repos.push({
-      id: nextId("r"), orgId: ctx.orgId, installationId: id, fullName, defaultBranch: "main", private: true,
-      reviewEnabled: true, indexStatus: "submitted", indexError: null, indexedSha: null, filesIndexed: 0,
-      lastIndexedAt: null, createdAt: now(),
-    });
-  }
-  return { installationId: id, repoCount: pending.repositories.length };
+  for (const repoId of repoIds) await enqueue("index-repo", { repoId, full: true }, { singletonKey: repoId });
+  return { installationId: externalInstallationId, repoCount: repoIds.length };
 }
 
 /* ───────────── repositories (S05, S06) ───────────── */
@@ -92,108 +114,127 @@ export interface RepoRow extends Repository {
   lastReviewAt: string | null;
 }
 
+const reviewStats = db
+  .select({
+    repoId: s.pullRequests.repoId,
+    n: count(s.reviews.id).as("n"),
+    last: dsql<string | null>`max(${s.reviews.completedAt})`.as("last"),
+  })
+  .from(s.reviews)
+  .innerJoin(s.pullRequests, eq(s.pullRequests.id, s.reviews.pullRequestId))
+  .where(eq(s.reviews.status, "completed"))
+  .groupBy(s.pullRequests.repoId)
+  .as("stats");
+
 export async function listRepos(ctx: Ctx, f: { q?: string; status?: string } = {}): Promise<RepoRow[]> {
   await simulate();
-  const s = store();
-  const q = f.q?.trim().toLowerCase();
-  return s.repos
-    .filter((r) => r.orgId === ctx.orgId)
-    .filter((r) => !q || r.fullName.toLowerCase().includes(q))
-    .filter((r) => {
-      if (!f.status || f.status === "all") return true;
-      if (f.status === "off") return !r.reviewEnabled;
-      if (f.status === "indexing") return ["submitted", "cloning", "processing"].includes(r.indexStatus);
-      return r.indexStatus === f.status;
-    })
-    .map((r) => {
-      const prIds = new Set(s.prs.filter((p) => p.repoId === r.id).map((p) => p.id));
-      const reviews = s.reviews.filter((v) => prIds.has(v.pullRequestId) && v.status === "completed");
-      return {
-        ...r,
-        installationLogin: s.installations.find((i) => i.id === r.installationId)?.accountLogin ?? "",
-        reviewCount: reviews.length,
-        lastReviewAt: reviews[0]?.completedAt ?? null,
-      };
-    })
-    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const conds = [eq(s.repositories.orgId, ctx.orgId), isNull(s.repositories.removedAt)];
+  const q = f.q?.trim();
+  if (q) conds.push(dsql`${s.repositories.fullName} ilike ${"%" + q.replace(/[%_\\]/g, (c) => "\\" + c) + "%"}`);
+  if (f.status && f.status !== "all") {
+    if (f.status === "off") conds.push(eq(s.repositories.reviewEnabled, false));
+    else if (f.status === "indexing") conds.push(inArray(s.repositories.indexStatus, ["submitted", "cloning", "processing"]));
+    else if (["completed", "failed"].includes(f.status)) conds.push(eq(s.repositories.indexStatus, f.status as "completed" | "failed"));
+  }
+  const rows = await db
+    .select({ r: s.repositories, login: s.installations.accountLogin, n: reviewStats.n, last: reviewStats.last })
+    .from(s.repositories)
+    .innerJoin(s.installations, eq(s.installations.id, s.repositories.installationId))
+    .leftJoin(reviewStats, eq(reviewStats.repoId, s.repositories.id))
+    .where(and(...conds))
+    .orderBy(asc(s.repositories.fullName));
+  return rows.map(({ r, login, n, last }) => ({
+    id: r.id, orgId: r.orgId, installationId: r.installationId, fullName: r.fullName, defaultBranch: r.defaultBranch, private: r.private,
+    reviewEnabled: r.reviewEnabled, indexStatus: r.indexStatus, indexError: r.indexError, indexedSha: r.indexedSha, filesIndexed: r.filesIndexed,
+    lastIndexedAt: iso(r.lastIndexedAt), createdAt: iso(r.createdAt)!, installationLogin: login, reviewCount: Number(n ?? 0), lastReviewAt: iso(last),
+  }));
 }
 
 export async function getRepo(ctx: Ctx, id: string): Promise<RepoRow> {
-  const rows = await listRepos(ctx);
-  const r = rows.find((x) => x.id === id);
+  if (!isUuid(id)) throw new NotFoundError("That repository");
+  const r = (await listRepos(ctx)).find((x) => x.id === id);
   if (!r) throw new NotFoundError("That repository");
   return r;
+}
+
+async function ownRepo(ctx: Ctx, id: string) {
+  if (!isUuid(id)) throw new NotFoundError("That repository");
+  const [r] = await db.select({ id: s.repositories.id }).from(s.repositories).where(and(eq(s.repositories.id, id), eq(s.repositories.orgId, ctx.orgId)));
+  if (!r) throw new NotFoundError("That repository");
 }
 
 export async function setRepoReviewEnabled(ctx: Ctx, id: string, enabled: boolean) {
   await simulate();
   assertAdmin(ctx);
-  const r = store().repos.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!r) throw new NotFoundError("That repository");
-  r.reviewEnabled = enabled;
+  await ownRepo(ctx, id);
+  await db.update(s.repositories).set({ reviewEnabled: enabled, updatedAt: now() }).where(and(eq(s.repositories.id, id), eq(s.repositories.orgId, ctx.orgId)));
 }
 
 export async function reindexRepo(ctx: Ctx, id: string) {
   await simulate();
   assertAdmin(ctx);
-  const r = store().repos.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!r) throw new NotFoundError("That repository");
-  r.indexStatus = "submitted";
-  r.indexError = null;
+  await ownRepo(ctx, id);
+  await db.update(s.repositories).set({ indexStatus: "submitted", indexError: null, updatedAt: now() }).where(eq(s.repositories.id, id));
+  await enqueue("index-repo", { repoId: id, full: true }, { singletonKey: id });
 }
 
 /* ───────────── review config (S07, S06 settings) ───────────── */
 
 export interface ConfigView {
-  /** The org default, or the repo override (null when the repo has none). */
   stored: ReviewConfig | null;
-  /** What actually applies: defaults < org < repo (repo files are read at review time). */
   effective: ReviewConfig;
   updatedAt: string | null;
   updatedBy: User | null;
 }
 
+function configRow(orgId: string, repoId: string | null, c: ReviewConfig, userId: string | null) {
+  return {
+    orgId, repoId, strictness: c.strictness, commentTypes: c.commentTypes, reviewDrafts: c.reviewDrafts, includeLabels: c.includeLabels,
+    disabledLabels: c.disabledLabels, includeAuthors: c.includeAuthors, excludeAuthors: c.excludeAuthors, includeBranches: c.includeBranches,
+    excludeBranches: c.excludeBranches, ignorePatterns: c.ignorePatterns, summaryOptions: c.summary, updatedBy: userId,
+  };
+}
+
+export function rowToConfig(r: typeof s.reviewConfigs.$inferSelect | undefined | null): ReviewConfig | null {
+  if (!r) return null;
+  return {
+    strictness: r.strictness, commentTypes: r.commentTypes, reviewDrafts: r.reviewDrafts, includeLabels: r.includeLabels,
+    disabledLabels: r.disabledLabels, includeAuthors: r.includeAuthors, excludeAuthors: r.excludeAuthors, includeBranches: r.includeBranches,
+    excludeBranches: r.excludeBranches, ignorePatterns: r.ignorePatterns, summary: { ...DEFAULT_CONFIG.summary, ...r.summaryOptions },
+  };
+}
+
 export async function getReviewConfig(ctx: Ctx, repoId: string | null): Promise<ConfigView> {
   await simulate();
-  const s = store();
-  const org = s.configs.find((c) => c.orgId === ctx.orgId && c.repoId === null) ?? null;
-  const row = repoId ? s.configs.find((c) => c.orgId === ctx.orgId && c.repoId === repoId) ?? null : org;
-  const pick = (c: typeof org): ReviewConfig | null => {
-    if (!c) return null;
-    // Copy only the config fields; the rest of the row is bookkeeping.
-    const {
-      strictness, commentTypes, reviewDrafts, includeLabels, disabledLabels, includeAuthors, excludeAuthors,
-      includeBranches, excludeBranches, ignorePatterns, summary,
-    } = c;
-    return {
-      strictness, commentTypes, reviewDrafts, includeLabels, disabledLabels, includeAuthors, excludeAuthors,
-      includeBranches, excludeBranches, ignorePatterns, summary,
-    };
-  };
+  if (repoId) await ownRepo(ctx, repoId);
+  const rows = await db.select().from(s.reviewConfigs)
+    .where(and(eq(s.reviewConfigs.orgId, ctx.orgId), repoId ? or(isNull(s.reviewConfigs.repoId), eq(s.reviewConfigs.repoId, repoId)) : isNull(s.reviewConfigs.repoId)));
+  const org = rows.find((r) => r.repoId === null);
+  const row = repoId ? rows.find((r) => r.repoId === repoId) : org;
+  const [by] = row?.updatedBy ? await db.select().from(s.users).where(eq(s.users.id, row.updatedBy)) : [];
   return {
-    stored: pick(row),
-    effective: mergeConfig(DEFAULT_CONFIG, pick(org), repoId ? pick(row) : null),
-    updatedAt: row?.updatedAt ?? null,
-    updatedBy: row?.updatedBy ? s.users.find((u) => u.id === row.updatedBy) ?? null : null,
+    stored: rowToConfig(row),
+    effective: mergeConfig(DEFAULT_CONFIG, rowToConfig(org), repoId ? rowToConfig(row) : null),
+    updatedAt: iso(row?.updatedAt),
+    updatedBy: by ? toUser(by) : null,
   };
 }
 
 export async function saveReviewConfig(ctx: Ctx, repoId: string | null, config: ReviewConfig) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  if (repoId && !s.repos.some((r) => r.id === repoId && r.orgId === ctx.orgId)) throw new NotFoundError("That repository");
-  const i = s.configs.findIndex((c) => c.orgId === ctx.orgId && c.repoId === repoId);
-  const row = { ...config, orgId: ctx.orgId, repoId, updatedAt: now(), updatedBy: ctx.userId };
-  if (i >= 0) s.configs[i] = row;
-  else s.configs.push(row);
+  if (repoId) await ownRepo(ctx, repoId);
+  const values = { ...configRow(ctx.orgId, repoId, config, ctx.userId), updatedAt: now() };
+  const where = and(eq(s.reviewConfigs.orgId, ctx.orgId), repoId ? eq(s.reviewConfigs.repoId, repoId) : isNull(s.reviewConfigs.repoId));
+  const updated = await db.update(s.reviewConfigs).set(values).where(where).returning({ id: s.reviewConfigs.id });
+  if (!updated.length) await db.insert(s.reviewConfigs).values(values);
 }
 
 export async function clearRepoConfig(ctx: Ctx, repoId: string) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  s.configs = s.configs.filter((c) => !(c.orgId === ctx.orgId && c.repoId === repoId));
+  await ownRepo(ctx, repoId);
+  await db.delete(s.reviewConfigs).where(and(eq(s.reviewConfigs.orgId, ctx.orgId), eq(s.reviewConfigs.repoId, repoId)));
 }
 
 /* ───────────── rules (S08) ───────────── */
@@ -205,73 +246,64 @@ export interface RuleInput {
   pathGlobs: string[];
 }
 
+const toRule = (r: typeof s.rules.$inferSelect): Rule => ({
+  id: r.id, orgId: r.orgId, text: r.text, kind: r.kind, source: r.source, status: r.status, repoIds: r.repoIds, pathGlobs: r.pathGlobs,
+  evidence: r.evidence, createdBy: r.createdBy, createdAt: iso(r.createdAt)!, updatedAt: iso(r.updatedAt)!,
+});
+
 export async function listRules(ctx: Ctx, status?: RuleStatus): Promise<Rule[]> {
   await simulate();
-  return store()
-    .rules.filter((r) => r.orgId === ctx.orgId && (!status || r.status === status))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const rows = await db.select().from(s.rules)
+    .where(and(eq(s.rules.orgId, ctx.orgId), status ? eq(s.rules.status, status) : undefined))
+    .orderBy(desc(s.rules.updatedAt));
+  return rows.map(toRule);
+}
+
+async function checkRuleRepos(ctx: Ctx, repoIds: string[]) {
+  if (!repoIds.length) return;
+  if (!repoIds.every(isUuid)) throw new NotFoundError("A selected repository");
+  const found = await db.select({ id: s.repositories.id }).from(s.repositories)
+    .where(and(eq(s.repositories.orgId, ctx.orgId), inArray(s.repositories.id, repoIds)));
+  if (found.length !== new Set(repoIds).size) throw new NotFoundError("A selected repository");
 }
 
 export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
   await simulate();
   assertAdmin(ctx);
-  const rule: Rule = {
-    id: nextId("rule"), orgId: ctx.orgId, ...input, source: "manual", status: "active", evidence: [],
-    createdBy: ctx.userId, createdAt: now(), updatedAt: now(),
-  };
-  store().rules.push(rule);
-  return rule;
+  await checkRuleRepos(ctx, input.repoIds);
+  const [r] = await db.insert(s.rules).values({ orgId: ctx.orgId, ...input, source: "manual", status: "active", evidence: [], createdBy: ctx.userId }).returning();
+  return toRule(r);
 }
 
-function ownRule(ctx: Ctx, id: string) {
-  const r = store().rules.find((x) => x.id === id && x.orgId === ctx.orgId);
+async function ownRule(ctx: Ctx, id: string) {
+  if (!isUuid(id)) throw new NotFoundError("That rule");
+  const [r] = await db.select({ id: s.rules.id }).from(s.rules).where(and(eq(s.rules.id, id), eq(s.rules.orgId, ctx.orgId)));
   if (!r) throw new NotFoundError("That rule");
-  return r;
 }
 
 export async function updateRule(ctx: Ctx, id: string, input: RuleInput) {
   await simulate();
   assertAdmin(ctx);
-  Object.assign(ownRule(ctx, id), input, { updatedAt: now() });
+  await ownRule(ctx, id);
+  await checkRuleRepos(ctx, input.repoIds);
+  await db.update(s.rules).set({ ...input, updatedAt: now() }).where(and(eq(s.rules.id, id), eq(s.rules.orgId, ctx.orgId)));
 }
 
 export async function setRuleStatus(ctx: Ctx, id: string, status: RuleStatus) {
   await simulate();
   assertAdmin(ctx);
-  Object.assign(ownRule(ctx, id), { status, updatedAt: now() });
+  await ownRule(ctx, id);
+  await db.update(s.rules).set({ status, updatedAt: now() }).where(and(eq(s.rules.id, id), eq(s.rules.orgId, ctx.orgId)));
 }
 
 export async function deleteRule(ctx: Ctx, id: string) {
   await simulate();
   assertAdmin(ctx);
-  ownRule(ctx, id);
-  const s = store();
-  s.rules = s.rules.filter((r) => r.id !== id);
+  await ownRule(ctx, id);
+  await db.delete(s.rules).where(and(eq(s.rules.id, id), eq(s.rules.orgId, ctx.orgId)));
 }
 
-/* ───────────── reviews (S11, review detail, S17/S18 preview) ───────────── */
-
-/** Fake worker: re-runs move queued → running (3s) → completed (10s), reusing the PR's last result.
- *  The real worker (pg-boss on Fly) replaces this; nothing calls it outside this file. */
-function advanceFakeReviews() {
-  const s = store();
-  const t = Date.now();
-  for (const r of s.reviews) {
-    if (r.trigger !== "manual" || (r.status !== "queued" && r.status !== "running")) continue;
-    const age = t - Date.parse(r.queuedAt);
-    if (age < 3000) continue;
-    if (age < 10_000) { r.status = "running"; continue; }
-    const prev = s.reviews.find((x) => x.pullRequestId === r.pullRequestId && x.id !== r.id && x.status === "completed");
-    Object.assign(r, {
-      status: "completed", completedAt: new Date().toISOString(), creditsUsed: 1,
-      confidenceScore: prev?.confidenceScore ?? 5, verdict: prev?.verdict ?? "Safe to merge",
-      summaryMd: prev?.summaryMd ?? "No changes need attention.", diagramMermaid: prev?.diagramMermaid ?? null,
-      filesReviewed: prev?.filesReviewed ?? [], checked: prev?.checked.length ? prev.checked : ["Error handling", "Tenant isolation", "Input validation"],
-    });
-    for (const f of s.findings) if (f.pullRequestId === r.pullRequestId && f.status === "open") f.lastSeenReviewId = r.id;
-    s.usage.push({ orgId: r.orgId, reviewId: r.id, credits: 1, periodStart: new Date().toISOString().slice(0, 8) + "01" });
-  }
-}
+/* ───────────── reviews (S11, review detail) ───────────── */
 
 export interface ReviewRow extends Review {
   pr: PullRequest;
@@ -279,61 +311,140 @@ export interface ReviewRow extends Review {
   counts: Record<Severity, number>;
 }
 
+export const toReview = (r: typeof s.reviews.$inferSelect): Review => ({
+  id: r.id, orgId: r.orgId, pullRequestId: r.pullRequestId, headSha: r.headSha, trigger: r.trigger, status: r.status, skipReason: r.skipReason,
+  error: r.error, confidenceScore: r.confidenceScore ?? null, verdict: r.verdict, summaryMd: r.summaryMd, diagramMermaid: r.diagramMermaid,
+  filesReviewed: r.filesReviewed, checked: r.checked, creditsUsed: r.creditsUsed, queuedAt: iso(r.queuedAt)!, completedAt: iso(r.completedAt),
+});
+
+export const toPr = (p: typeof s.pullRequests.$inferSelect): PullRequest => ({
+  id: p.id, orgId: p.orgId, repoId: p.repoId, number: p.number, title: p.title, authorLogin: p.authorLogin, baseBranch: p.baseBranch,
+  headSha: p.headSha, state: p.state, isDraft: p.isDraft, labels: p.labels, url: p.url, openedAt: iso(p.openedAt)!, mergedAt: iso(p.mergedAt),
+});
+
+const severityCounts = db
+  .select({
+    reviewId: s.reviews.id,
+    p0: dsql<number>`count(*) filter (where ${s.findings.severity} = 'P0')`.as("p0"),
+    p1: dsql<number>`count(*) filter (where ${s.findings.severity} = 'P1')`.as("p1"),
+    p2: dsql<number>`count(*) filter (where ${s.findings.severity} = 'P2')`.as("p2"),
+  })
+  .from(s.reviews)
+  .innerJoin(s.findings, or(eq(s.findings.firstReviewId, s.reviews.id), eq(s.findings.lastSeenReviewId, s.reviews.id)))
+  .groupBy(s.reviews.id)
+  .as("sev");
+
 export async function listReviews(
   ctx: Ctx,
   f: { repoId?: string; status?: ReviewStatus | "all"; q?: string; cursor?: string; limit?: number } = {},
 ): Promise<{ items: ReviewRow[]; nextCursor: string | null; total: number }> {
   await simulate();
-  advanceFakeReviews();
-  const s = store();
-  const limit = f.limit ?? 20;
-  const q = f.q?.trim().toLowerCase();
-  const all = s.reviews
-    .filter((r) => r.orgId === ctx.orgId)
-    .map((r) => {
-      const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
-      const repo = s.repos.find((x) => x.id === pr.repoId)!;
-      const fs = s.findings.filter((x) => x.lastSeenReviewId === r.id || x.firstReviewId === r.id);
-      return {
-        ...r, pr, repo: { id: repo.id, fullName: repo.fullName },
-        counts: { P0: fs.filter((x) => x.severity === "P0").length, P1: fs.filter((x) => x.severity === "P1").length, P2: fs.filter((x) => x.severity === "P2").length },
-      };
-    })
-    .filter((r) => !f.repoId || r.repo.id === f.repoId)
-    .filter((r) => !f.status || f.status === "all" || r.status === f.status)
-    .filter((r) => !q || r.pr.title.toLowerCase().includes(q) || `#${r.pr.number}`.includes(q) || r.pr.authorLogin.toLowerCase().includes(q));
-  const start = f.cursor ? all.findIndex((r) => r.id === f.cursor) + 1 : 0;
-  const items = all.slice(start, start + limit);
-  return { items, nextCursor: start + limit < all.length ? items[items.length - 1].id : null, total: all.length };
+  const limit = Math.min(f.limit ?? 20, 200);
+  const conds = [eq(s.reviews.orgId, ctx.orgId)];
+  if (f.repoId) {
+    if (!isUuid(f.repoId)) return { items: [], nextCursor: null, total: 0 };
+    conds.push(eq(s.pullRequests.repoId, f.repoId));
+  }
+  if (f.status && f.status !== "all") conds.push(eq(s.reviews.status, f.status));
+  const q = f.q?.trim();
+  if (q) {
+    const like = "%" + q.replace(/[%_\\]/g, (c) => "\\" + c) + "%";
+    const num = /^#?(\d+)$/.exec(q)?.[1];
+    conds.push(or(dsql`${s.pullRequests.title} ilike ${like}`, dsql`${s.pullRequests.authorLogin} ilike ${like}`, num ? eq(s.pullRequests.number, Number(num)) : undefined)!);
+  }
+  const base = and(...conds);
+  const [{ total }] = await db.select({ total: count() }).from(s.reviews).innerJoin(s.pullRequests, eq(s.pullRequests.id, s.reviews.pullRequestId)).where(base);
+  let page = base;
+  if (f.cursor && isUuid(f.cursor)) {
+    const [c] = await db.select({ q: s.reviews.queuedAt, id: s.reviews.id }).from(s.reviews).where(and(eq(s.reviews.id, f.cursor), eq(s.reviews.orgId, ctx.orgId)));
+    if (c) page = and(base, dsql`(${s.reviews.queuedAt}, ${s.reviews.id}) < (${c.q}::timestamptz, ${c.id}::uuid)`);
+  }
+  const rows = await db
+    .select({ r: s.reviews, pr: s.pullRequests, repoName: s.repositories.fullName, p0: severityCounts.p0, p1: severityCounts.p1, p2: severityCounts.p2 })
+    .from(s.reviews)
+    .innerJoin(s.pullRequests, eq(s.pullRequests.id, s.reviews.pullRequestId))
+    .innerJoin(s.repositories, eq(s.repositories.id, s.pullRequests.repoId))
+    .leftJoin(severityCounts, eq(severityCounts.reviewId, s.reviews.id))
+    .where(page)
+    .orderBy(desc(s.reviews.queuedAt), desc(s.reviews.id))
+    .limit(limit + 1);
+  const items = rows.slice(0, limit).map(({ r, pr, repoName, p0, p1, p2 }) => ({
+    ...toReview(r), pr: toPr(pr), repo: { id: pr.repoId, fullName: repoName },
+    counts: { P0: Number(p0 ?? 0), P1: Number(p1 ?? 0), P2: Number(p2 ?? 0) },
+  }));
+  return { items, nextCursor: rows.length > limit ? items[items.length - 1].id : null, total: Number(total) };
+}
+
+export const toFinding = (f: typeof s.findings.$inferSelect, up = 0, down = 0): Finding => ({
+  id: f.id, orgId: f.orgId, pullRequestId: f.pullRequestId, firstReviewId: f.firstReviewId, lastSeenReviewId: f.lastSeenReviewId,
+  fingerprint: f.fingerprint, filePath: f.filePath, lineStart: f.lineStart, lineEnd: f.lineEnd, inDiff: f.inDiff, severity: f.severity,
+  type: f.type, title: f.title, bodyMd: f.bodyMd, suggestion: f.suggestion, ruleId: f.ruleId, status: f.status, thumbsUp: up, thumbsDown: down,
+  createdAt: iso(f.createdAt)!,
+});
+
+const reactionCounts = db
+  .select({
+    findingId: s.feedback.findingId,
+    up: dsql<number>`count(*) filter (where ${s.feedback.kind} = 'thumbs_up')`.as("up"),
+    down: dsql<number>`count(*) filter (where ${s.feedback.kind} = 'thumbs_down')`.as("down"),
+  })
+  .from(s.feedback)
+  .groupBy(s.feedback.findingId)
+  .as("rx");
+
+async function findingsWhere(where: ReturnType<typeof and>) {
+  const rows = await db.select({ f: s.findings, up: reactionCounts.up, down: reactionCounts.down }).from(s.findings)
+    .leftJoin(reactionCounts, eq(reactionCounts.findingId, s.findings.id)).where(where);
+  return rows.map(({ f, up, down }) => toFinding(f, Number(up ?? 0), Number(down ?? 0)));
 }
 
 export async function getReview(ctx: Ctx, id: string): Promise<ReviewRow & { findings: Finding[]; rules: Rule[] }> {
   await simulate();
-  advanceFakeReviews();
-  const s = store();
-  const r = s.reviews.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!r) throw new NotFoundError("That review");
-  const { items } = await listReviews(ctx, { limit: 10_000 });
-  const row = items.find((x) => x.id === id)!;
-  const findings = s.findings.filter((x) => x.pullRequestId === r.pullRequestId);
-  const ruleIds = new Set(findings.map((x) => x.ruleId).filter(Boolean));
-  return { ...row, findings, rules: s.rules.filter((x) => ruleIds.has(x.id)) };
+  if (!isUuid(id)) throw new NotFoundError("That review");
+  const [row] = await db
+    .select({ r: s.reviews, pr: s.pullRequests, repoName: s.repositories.fullName, p0: severityCounts.p0, p1: severityCounts.p1, p2: severityCounts.p2 })
+    .from(s.reviews)
+    .innerJoin(s.pullRequests, eq(s.pullRequests.id, s.reviews.pullRequestId))
+    .innerJoin(s.repositories, eq(s.repositories.id, s.pullRequests.repoId))
+    .leftJoin(severityCounts, eq(severityCounts.reviewId, s.reviews.id))
+    .where(and(eq(s.reviews.id, id), eq(s.reviews.orgId, ctx.orgId)));
+  if (!row) throw new NotFoundError("That review");
+  const findings = await findingsWhere(and(eq(s.findings.pullRequestId, row.r.pullRequestId), eq(s.findings.orgId, ctx.orgId)));
+  const ruleIds = [...new Set(findings.map((x) => x.ruleId).filter((x): x is string => !!x))];
+  const rules = ruleIds.length ? (await db.select().from(s.rules).where(and(eq(s.rules.orgId, ctx.orgId), inArray(s.rules.id, ruleIds)))).map(toRule) : [];
+  return {
+    ...toReview(row.r), pr: toPr(row.pr), repo: { id: row.pr.repoId, fullName: row.repoName },
+    counts: { P0: Number(row.p0 ?? 0), P1: Number(row.p1 ?? 0), P2: Number(row.p2 ?? 0) },
+    findings, rules,
+  };
 }
 
-export async function rerunReview(ctx: Ctx, id: string) {
+export async function getFinding(ctx: Ctx, id: string): Promise<Finding> {
   await simulate();
-  const s = store();
-  const r = s.reviews.find((x) => x.id === id && x.orgId === ctx.orgId);
+  if (!isUuid(id)) throw new NotFoundError("That finding");
+  const [f] = await findingsWhere(and(eq(s.findings.id, id), eq(s.findings.orgId, ctx.orgId)));
+  if (!f) throw new NotFoundError("That finding");
+  return f;
+}
+
+/** Queue a fresh review of the PR's current head. The partial unique index rejects a second live review. */
+export async function rerunReview(ctx: Ctx, id: string): Promise<Review> {
+  await simulate();
+  if (!isUuid(id)) throw new NotFoundError("That review");
+  const [r] = await db.select().from(s.reviews).where(and(eq(s.reviews.id, id), eq(s.reviews.orgId, ctx.orgId)));
   if (!r) throw new NotFoundError("That review");
-  if (s.reviews.some((x) => x.pullRequestId === r.pullRequestId && (x.status === "queued" || x.status === "running")))
-    throw new Error("A review is already running for this pull request.");
-  const review: Review = {
-    ...r, id: nextId("rev"), trigger: "manual", status: "queued", skipReason: null, error: null, confidenceScore: null,
-    verdict: null, summaryMd: null, diagramMermaid: null, filesReviewed: [], checked: [], creditsUsed: 0,
-    queuedAt: now(), completedAt: null,
-  };
-  s.reviews.unshift(review);
-  return review;
+  const [pr] = await db.select().from(s.pullRequests).where(eq(s.pullRequests.id, r.pullRequestId));
+  try {
+    const [created] = await db.insert(s.reviews).values({
+      orgId: ctx.orgId, pullRequestId: r.pullRequestId, headSha: pr.headSha, trigger: "manual", triggeredBy: ctx.userId, status: "queued",
+      filesReviewed: [], checked: [],
+    }).returning();
+    await enqueue("review-pr", { reviewId: created.id });
+    return toReview(created);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new Error("A review is already running for this pull request.");
+    throw e;
+  }
 }
 
 /* ───────────── analytics (S10) ───────────── */
@@ -353,62 +464,67 @@ export interface Analytics {
 
 export async function getAnalytics(ctx: Ctx, f: { days: number; repoId?: string; author?: string }): Promise<Analytics> {
   await simulate();
-  const s = store();
+  const days = [7, 30, 90].includes(f.days) ? f.days : 30;
+  // Whole UTC days, so the totals and the per-day chart count the same reviews.
   const end = Date.now();
-  const window = (fromMs: number, toMs: number) => {
-    const reviews = s.reviews.filter((r) => {
-      if (r.orgId !== ctx.orgId || r.status !== "completed") return false;
-      const t = Date.parse(r.queuedAt);
-      const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
-      return t >= fromMs && t < toMs && (!f.repoId || pr.repoId === f.repoId) && (!f.author || pr.authorLogin === f.author);
-    });
-    const ids = new Set(reviews.map((r) => r.id));
-    const fs = s.findings.filter((x) => ids.has(x.firstReviewId));
-    const prs = reviews.map((r) => s.prs.find((p) => p.id === r.pullRequestId)!);
-    const closed = fs.filter((x) => x.status !== "open");
+  const startToday = Date.UTC(new Date(end).getUTCFullYear(), new Date(end).getUTCMonth(), new Date(end).getUTCDate());
+  const span = days * 864e5;
+  const curStart = startToday - (days - 1) * 864e5;
+  const from = new Date(curStart - span).toISOString();
+  const conds = [eq(s.reviews.orgId, ctx.orgId), eq(s.reviews.status, "completed"), gte(s.reviews.queuedAt, from)];
+  if (f.repoId && isUuid(f.repoId)) conds.push(eq(s.pullRequests.repoId, f.repoId));
+  if (f.author) conds.push(eq(s.pullRequests.authorLogin, f.author));
+  // Two periods of completed reviews with their PRs, aggregated in memory: bounded by 2×period per org.
+  const reviews = await db.select({ r: s.reviews, pr: s.pullRequests, repo: s.repositories.fullName }).from(s.reviews)
+    .innerJoin(s.pullRequests, eq(s.pullRequests.id, s.reviews.pullRequestId))
+    .innerJoin(s.repositories, eq(s.repositories.id, s.pullRequests.repoId))
+    .where(and(...conds));
+  const ids = reviews.map((x) => x.r.id);
+  const fs = ids.length ? await findingsWhere(and(eq(s.findings.orgId, ctx.orgId), inArray(s.findings.firstReviewId, ids))) : [];
+
+  const window = (a: number, b: number) => {
+    const rs = reviews.filter((x) => { const t = Date.parse(iso(x.r.queuedAt)!); return t >= a && t < b; });
+    const set = new Set(rs.map((x) => x.r.id));
+    const ff = fs.filter((x) => set.has(x.firstReviewId));
+    const closed = ff.filter((x) => x.status !== "open");
     const addressed = closed.filter((x) => x.status === "addressed" || x.status === "resolved").length;
-    const merge = prs.filter((p) => p.mergedAt).map((p) => (Date.parse(p.mergedAt!) - Date.parse(p.openedAt)) / 36e5).sort((a, b) => a - b);
+    const merge = [...new Map(rs.map((x) => [x.pr.id, x.pr])).values()].filter((p) => p.mergedAt)
+      .map((p) => (Date.parse(iso(p.mergedAt)!) - Date.parse(iso(p.openedAt)!)) / 36e5).sort((x, y) => x - y);
     return {
-      reviews, fs, prs,
+      rs, ff,
+      prs: new Set(rs.map((x) => x.pr.id)).size,
       addressedRate: closed.length ? addressed / closed.length : null,
-      critical: fs.filter((x) => x.severity === "P0" && x.status !== "dismissed").length,
+      critical: ff.filter((x) => x.severity === "P0" && x.status !== "dismissed").length,
       median: merge.length ? merge[Math.floor(merge.length / 2)] : null,
     };
   };
-  const span = f.days * 864e5;
-  const cur = window(end - span, end + 1);
-  const prev = window(end - 2 * span, end - span);
+  const cur = window(curStart, end + 1);
+  const prev = window(curStart - span, curStart);
 
   const daily: Analytics["daily"] = [];
-  for (let d = f.days - 1; d >= 0; d--) {
-    const day = new Date(end - d * 864e5).toISOString().slice(0, 10);
-    const rs = cur.reviews.filter((r) => r.queuedAt.slice(0, 10) === day);
-    const ids = new Set(rs.map((r) => r.id));
-    const fs = cur.fs.filter((x) => ids.has(x.firstReviewId));
-    daily.push({ date: day, reviews: rs.length, P0: fs.filter((x) => x.severity === "P0").length, P1: fs.filter((x) => x.severity === "P1").length, P2: fs.filter((x) => x.severity === "P2").length });
+  for (let d = days - 1; d >= 0; d--) {
+    const day = new Date(startToday - d * 864e5).toISOString().slice(0, 10);
+    const rs = cur.rs.filter((x) => iso(x.r.queuedAt)!.slice(0, 10) === day);
+    const set = new Set(rs.map((x) => x.r.id));
+    const ff = cur.ff.filter((x) => set.has(x.firstReviewId));
+    daily.push({ date: day, reviews: rs.length, P0: ff.filter((x) => x.severity === "P0").length, P1: ff.filter((x) => x.severity === "P1").length, P2: ff.filter((x) => x.severity === "P2").length });
   }
-
   const byRepo = new Map<string, Analytics["byRepo"][number]>();
-  for (const r of cur.reviews) {
-    const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
-    const name = s.repos.find((x) => x.id === pr.repoId)!.fullName;
-    const row = byRepo.get(name) ?? { repo: name, reviews: 0, findings: 0, closed: 0, addressed: 0 };
-    const fs = cur.fs.filter((x) => x.firstReviewId === r.id);
+  for (const x of cur.rs) {
+    const row = byRepo.get(x.repo) ?? { repo: x.repo, reviews: 0, findings: 0, closed: 0, addressed: 0 };
+    const ff = cur.ff.filter((y) => y.firstReviewId === x.r.id);
     row.reviews += 1;
-    row.findings += fs.length;
-    row.closed += fs.filter((x) => x.status !== "open").length;
-    row.addressed += fs.filter((x) => x.status === "addressed" || x.status === "resolved").length;
-    byRepo.set(name, row);
+    row.findings += ff.length;
+    row.closed += ff.filter((y) => y.status !== "open").length;
+    row.addressed += ff.filter((y) => y.status === "addressed" || y.status === "resolved").length;
+    byRepo.set(x.repo, row);
   }
-
   return {
-    range: { from: new Date(end - span).toISOString(), to: new Date(end).toISOString(), days: f.days },
+    range: { from: new Date(curStart).toISOString(), to: new Date(end).toISOString(), days },
     tiles: {
-      prsReviewed: new Set(cur.prs.map((p) => p.id)).size, prsReviewedPrev: new Set(prev.prs.map((p) => p.id)).size,
-      addressedRate: cur.addressedRate, addressedRatePrev: prev.addressedRate,
-      criticalCaught: cur.critical, criticalCaughtPrev: prev.critical,
-      medianMergeHours: cur.median, medianMergeHoursPrev: prev.median,
-      thumbsUp: cur.fs.reduce((n, x) => n + x.thumbsUp, 0), thumbsDown: cur.fs.reduce((n, x) => n + x.thumbsDown, 0),
+      prsReviewed: cur.prs, prsReviewedPrev: prev.prs, addressedRate: cur.addressedRate, addressedRatePrev: prev.addressedRate,
+      criticalCaught: cur.critical, criticalCaughtPrev: prev.critical, medianMergeHours: cur.median, medianMergeHoursPrev: prev.median,
+      thumbsUp: cur.ff.reduce((n, x) => n + x.thumbsUp, 0), thumbsDown: cur.ff.reduce((n, x) => n + x.thumbsDown, 0),
     },
     daily,
     byRepo: [...byRepo.values()].sort((a, b) => b.reviews - a.reviews),
@@ -417,7 +533,8 @@ export async function getAnalytics(ctx: Ctx, f: { days: number; repoId?: string;
 
 export async function listAuthors(ctx: Ctx): Promise<string[]> {
   await simulate();
-  return [...new Set(store().prs.filter((p) => p.orgId === ctx.orgId).map((p) => p.authorLogin))].sort();
+  const rows = await db.selectDistinct({ a: s.pullRequests.authorLogin }).from(s.pullRequests).where(eq(s.pullRequests.orgId, ctx.orgId)).orderBy(asc(s.pullRequests.authorLogin));
+  return rows.map((r) => r.a);
 }
 
 /* ───────────── members (S12) ───────────── */
@@ -429,65 +546,124 @@ export interface MemberRow {
   reviewsThisMonth: number;
 }
 
+const toInvite = (i: typeof s.invites.$inferSelect): Invite => ({
+  id: i.id, orgId: i.orgId, email: i.email, role: i.role, invitedBy: i.invitedBy ?? "", expiresAt: iso(i.expiresAt)!, createdAt: iso(i.createdAt)!,
+});
+
 export async function listMembers(ctx: Ctx): Promise<{ members: MemberRow[]; invites: Invite[] }> {
   await simulate();
-  const s = store();
-  const month = new Date().toISOString().slice(0, 7);
-  const members = s.memberships
-    .filter((m) => m.orgId === ctx.orgId)
-    .map((m) => {
-      const user = s.users.find((u) => u.id === m.userId)!;
-      const reviewsThisMonth = s.reviews.filter((r) => {
-        const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
-        return r.orgId === ctx.orgId && r.status === "completed" && pr.authorLogin === user.githubLogin && r.queuedAt.startsWith(month);
-      }).length;
-      return { user, role: m.role, joinedAt: m.createdAt, reviewsThisMonth };
+  const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
+  const rows = await db
+    .select({
+      u: s.users, role: s.memberships.role, joined: s.memberships.createdAt,
+      n: dsql<number>`(select count(*) from ${s.reviews} r join ${s.pullRequests} p on p.id = r.pull_request_id
+                      where r.org_id = ${ctx.orgId} and r.status = 'completed' and p.author_login = ${s.users.githubLogin} and r.queued_at >= ${monthStart})`,
     })
-    .sort((a, b) => a.user.name.localeCompare(b.user.name));
-  return { members, invites: s.invites.filter((i) => i.orgId === ctx.orgId) };
+    .from(s.memberships)
+    .innerJoin(s.users, eq(s.users.id, s.memberships.userId))
+    .where(eq(s.memberships.orgId, ctx.orgId))
+    .orderBy(asc(s.users.name));
+  const invites = await db.select().from(s.invites)
+    .where(and(eq(s.invites.orgId, ctx.orgId), isNull(s.invites.acceptedAt), gte(s.invites.expiresAt, now())))
+    .orderBy(desc(s.invites.createdAt));
+  return {
+    members: rows.map((r) => ({ user: toUser(r.u), role: r.role, joinedAt: iso(r.joined)!, reviewsThisMonth: Number(r.n) })),
+    invites: invites.map(toInvite),
+  };
 }
+
+export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
 export async function inviteMember(ctx: Ctx, email: string, role: Role): Promise<Invite> {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
+  const { rateLimit } = await import("@/lib/rate-limit");
+  await rateLimit(`invite:${ctx.orgId}`, 30, 3600);
   const e = email.trim().toLowerCase();
-  if (s.memberships.some((m) => m.orgId === ctx.orgId && s.users.find((u) => u.id === m.userId)?.email === e))
-    throw new Error(`${e} is already a member.`);
-  if (s.invites.some((i) => i.orgId === ctx.orgId && i.email === e)) throw new Error(`${e} already has an open invite.`);
-  const invite: Invite = { id: nextId("inv"), orgId: ctx.orgId, email: e, role, invitedBy: ctx.userId, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), createdAt: now() };
-  s.invites.push(invite);
-  return invite;
+  const [member] = await db.select({ id: s.users.id }).from(s.memberships).innerJoin(s.users, eq(s.users.id, s.memberships.userId))
+    .where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.users.email, e)));
+  if (member) throw new Error(`${e} is already a member.`);
+  // Expired, unaccepted invites don't block a new one.
+  await db.delete(s.invites).where(and(eq(s.invites.orgId, ctx.orgId), eq(s.invites.email, e), isNull(s.invites.acceptedAt), lt(s.invites.expiresAt, now())));
+  const token = randomBytes(32).toString("base64url");
+  try {
+    const [inv] = await db.insert(s.invites).values({
+      orgId: ctx.orgId, email: e, role, tokenHash: hashToken(token), invitedBy: ctx.userId, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(),
+    }).returning();
+    const [org] = await db.select({ name: s.organizations.name }).from(s.organizations).where(eq(s.organizations.id, ctx.orgId));
+    const [inviter] = await db.select({ name: s.users.name }).from(s.users).where(eq(s.users.id, ctx.userId));
+    await enqueue("send-email", {
+      to: e, template: "invite",
+      vars: { org: org.name, inviter: inviter?.name ?? "A teammate", role, url: `${appUrl()}/invite/${token}` },
+    });
+    return toInvite(inv);
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new Error(`${e} already has an open invite.`);
+    throw err;
+  }
 }
 
 export async function revokeInvite(ctx: Ctx, id: string) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  s.invites = s.invites.filter((i) => !(i.id === id && i.orgId === ctx.orgId));
+  if (!isUuid(id)) return;
+  await db.delete(s.invites).where(and(eq(s.invites.id, id), eq(s.invites.orgId, ctx.orgId)));
 }
 
-function adminCount(orgId: string) {
-  return store().memberships.filter((m) => m.orgId === orgId && m.role === "admin").length;
+/** For /invite/[token]: what the invite is for, without accepting it. */
+export async function peekInvite(token: string) {
+  const [row] = await db.select({ i: s.invites, org: s.organizations.name }).from(s.invites)
+    .innerJoin(s.organizations, eq(s.organizations.id, s.invites.orgId)).where(eq(s.invites.tokenHash, hashToken(token)));
+  if (!row) return null;
+  return { orgName: row.org, email: row.i.email, role: row.i.role, expired: Date.parse(iso(row.i.expiresAt)!) < Date.now(), accepted: !!row.i.acceptedAt };
+}
+
+/** Accept an invite as the signed-in user. The email must match: invite links can be forwarded. */
+export async function acceptInvite(userId: string, token: string): Promise<{ orgId: string }> {
+  const r = await db.transaction(async (tx) => {
+    const [inv] = await tx.select().from(s.invites).where(eq(s.invites.tokenHash, hashToken(token))).for("update");
+    if (!inv || inv.acceptedAt) throw new NotFoundError("That invite");
+    if (Date.parse(iso(inv.expiresAt)!) < Date.now()) throw new Error("This invite has expired. Ask for a new one.");
+    const [u] = await tx.select().from(s.users).where(eq(s.users.id, userId));
+    if (!u?.email || u.email.toLowerCase() !== inv.email.toLowerCase())
+      throw new Error(`This invite is for ${inv.email}. Sign in with that email to accept it.`);
+    await tx.insert(s.memberships).values({ orgId: inv.orgId, userId, role: inv.role }).onConflictDoNothing();
+    await tx.update(s.invites).set({ acceptedAt: now() }).where(eq(s.invites.id, inv.id));
+    return { orgId: inv.orgId };
+  });
+  await syncSeats(r.orgId);
+  return r;
+}
+
+async function adminCount(orgId: string) {
+  const [{ n }] = await db.select({ n: count() }).from(s.memberships).where(and(eq(s.memberships.orgId, orgId), eq(s.memberships.role, "admin")));
+  return Number(n);
 }
 
 export async function changeRole(ctx: Ctx, userId: string, role: Role) {
   await simulate();
   assertAdmin(ctx);
-  const m = store().memberships.find((x) => x.orgId === ctx.orgId && x.userId === userId);
+  if (!isUuid(userId)) throw new NotFoundError("That member");
+  const [m] = await db.select().from(s.memberships).where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.memberships.userId, userId)));
   if (!m) throw new NotFoundError("That member");
-  if (m.role === "admin" && role === "member" && adminCount(ctx.orgId) === 1) throw new Error("An organization needs at least one admin.");
-  m.role = role;
+  if (m.role === "admin" && role === "member" && (await adminCount(ctx.orgId)) === 1) throw new Error("An organization needs at least one admin.");
+  await db.update(s.memberships).set({ role, updatedAt: now() }).where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.memberships.userId, userId)));
 }
 
 export async function removeMember(ctx: Ctx, userId: string) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  const m = s.memberships.find((x) => x.orgId === ctx.orgId && x.userId === userId);
+  if (!isUuid(userId)) throw new NotFoundError("That member");
+  const [m] = await db.select().from(s.memberships).where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.memberships.userId, userId)));
   if (!m) throw new NotFoundError("That member");
-  if (m.role === "admin" && adminCount(ctx.orgId) === 1) throw new Error("You can't remove the last admin.");
-  s.memberships = s.memberships.filter((x) => x !== m);
+  if (m.role === "admin" && (await adminCount(ctx.orgId)) === 1) throw new Error("You can't remove the last admin.");
+  await db.delete(s.memberships).where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.memberships.userId, userId)));
+  await syncSeats(ctx.orgId);
+}
+
+async function syncSeats(orgId: string) {
+  const { updateSeats } = await import("@/lib/billing");
+  await updateSeats(orgId).catch((e) => console.error("[billing] seat sync failed", e));
 }
 
 /* ───────────── billing (S13) ───────────── */
@@ -496,7 +672,6 @@ export interface Billing {
   plan: "free" | "trial" | "pro" | "enterprise";
   billingStatus: "none" | "active" | "past_due" | "canceled";
   trialEndsAt: string | null;
-  /** Whole days left in the trial, 0 when it has ended; null when not on a trial. */
   trialDaysLeft: number | null;
   seats: number;
   includedReviews: number;
@@ -505,126 +680,147 @@ export interface Billing {
   periodEnd: string;
   pricePerSeatCents: number;
   overagePerReviewCents: number;
-  invoices: { id: string; date: string; amountCents: number; status: "paid" | "open" }[];
+  invoices: { id: string; date: string; amountCents: number; status: "paid" | "open"; url?: string }[];
 }
 
 export async function getBilling(ctx: Ctx): Promise<Billing> {
   await simulate();
-  const s = store();
-  const org = s.orgs.find((o) => o.id === ctx.orgId)!;
+  const { PRICING, listInvoices } = await import("@/lib/billing");
+  const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, ctx.orgId));
   const d = new Date();
   const periodStart = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
   const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-  const seats = s.memberships.filter((m) => m.orgId === ctx.orgId).length;
-  const used = s.usage.filter((u) => u.orgId === ctx.orgId && u.periodStart === periodStart).reduce((n, u) => n + u.credits, 0);
-  const paid = org.plan === "pro" || org.plan === "enterprise";
+  const [{ seats }] = await db.select({ seats: count() }).from(s.memberships).where(eq(s.memberships.orgId, ctx.orgId));
+  const [{ used }] = await db.select({ used: sum(s.usageEvents.credits) }).from(s.usageEvents)
+    .where(and(eq(s.usageEvents.orgId, ctx.orgId), eq(s.usageEvents.periodStart, periodStart)));
   return {
-    plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: org.trialEndsAt,
-    trialDaysLeft: org.plan === "trial" && org.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(org.trialEndsAt) - Date.now()) / 864e5)) : null,
-    seats,
-    includedReviews: seats * org.includedReviewsPerSeat, usedReviews: used,
+    plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: iso(org.trialEndsAt),
+    trialDaysLeft: org.plan === "trial" && org.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(iso(org.trialEndsAt)!) - Date.now()) / 864e5)) : null,
+    seats: Number(seats), includedReviews: Number(seats) * org.includedReviewsPerSeat, usedReviews: Number(used ?? 0),
     periodStart, periodEnd: next.toISOString().slice(0, 10),
-    pricePerSeatCents: 2400, overagePerReviewCents: 80,
-    invoices: paid
-      ? [1, 2, 3].map((k) => {
-          const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - k + 1, 1));
-          return { id: `in_${k}`, date: t.toISOString().slice(0, 10), amountCents: seats * 2400 + (k === 2 ? 1600 : 0), status: "paid" as const };
-        })
-      : [],
+    pricePerSeatCents: PRICING.seatCents, overagePerReviewCents: PRICING.overageCents,
+    invoices: org.stripeCustomerId ? await listInvoices(org.stripeCustomerId) : [],
   };
 }
 
-/** Fake checkout: flips the plan. The real one returns a Stripe Checkout URL. */
+/** Returns a Stripe Checkout URL. */
 export async function startCheckout(ctx: Ctx): Promise<{ url: string }> {
   await simulate();
   assertAdmin(ctx);
-  const org = store().orgs.find((o) => o.id === ctx.orgId)!;
-  org.plan = "pro";
-  org.billingStatus = "active";
-  org.trialEndsAt = null;
-  return { url: "/settings/billing?upgraded=1" };
+  const { createCheckout } = await import("@/lib/billing");
+  return createCheckout(ctx.orgId, ctx.userId);
+}
+
+/** Returns a Stripe Customer Portal URL (cards, invoices, one-click cancel). */
+export async function openBillingPortal(ctx: Ctx): Promise<{ url: string }> {
+  await simulate();
+  assertAdmin(ctx);
+  const { createPortal } = await import("@/lib/billing");
+  return createPortal(ctx.orgId);
 }
 
 /* ───────────── API keys (S15) ───────────── */
 
 export async function listApiKeys(ctx: Ctx): Promise<(ApiKey & { createdByName: string })[]> {
   await simulate();
-  const s = store();
-  return s.apiKeys
-    .filter((k) => k.orgId === ctx.orgId)
-    .map((k) => ({ ...k, createdByName: s.users.find((u) => u.id === k.createdBy)?.name ?? "Unknown" }))
-    .sort((a, b) => Number(!!a.revokedAt) - Number(!!b.revokedAt) || b.createdAt.localeCompare(a.createdAt));
+  const rows = await db.select({ k: s.apiKeys, name: s.users.name }).from(s.apiKeys).leftJoin(s.users, eq(s.users.id, s.apiKeys.createdBy))
+    .where(eq(s.apiKeys.orgId, ctx.orgId)).orderBy(dsql`${s.apiKeys.revokedAt} is not null`, desc(s.apiKeys.createdAt));
+  return rows.map(({ k, name }) => ({
+    id: k.id, orgId: k.orgId, name: k.name, prefix: k.prefix, createdBy: k.createdBy ?? "", lastUsedAt: iso(k.lastUsedAt),
+    revokedAt: iso(k.revokedAt), createdAt: iso(k.createdAt)!, createdByName: name ?? "A former member",
+  }));
 }
 
-/** Returns the secret once. Only a prefix is stored (the real layer stores a hash). */
+/** Returns the secret once; only its SHA-256 is stored. */
 export async function createApiKey(ctx: Ctx, name: string): Promise<{ key: ApiKey; secret: string }> {
   await simulate();
   assertAdmin(ctx);
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  const secret = "rpt_" + Array.from(bytes, (b) => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"[b % 57]).join("");
-  const key: ApiKey = { id: nextId("key"), orgId: ctx.orgId, name, prefix: secret.slice(0, 8), createdBy: ctx.userId, lastUsedAt: null, revokedAt: null, createdAt: now() };
-  store().apiKeys.push(key);
-  return { key, secret };
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = randomBytes(24);
+  const secret = "rpt_" + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+  const [k] = await db.insert(s.apiKeys).values({ orgId: ctx.orgId, name, prefix: secret.slice(0, 8), keyHash: hashToken(secret), createdBy: ctx.userId }).returning();
+  return {
+    key: { id: k.id, orgId: k.orgId, name: k.name, prefix: k.prefix, createdBy: ctx.userId, lastUsedAt: null, revokedAt: null, createdAt: iso(k.createdAt)! },
+    secret,
+  };
 }
 
 export async function revokeApiKey(ctx: Ctx, id: string) {
   await simulate();
   assertAdmin(ctx);
-  const k = store().apiKeys.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!k) throw new NotFoundError("That key");
-  k.revokedAt = now();
+  if (!isUuid(id)) throw new NotFoundError("That key");
+  const r = await db.update(s.apiKeys).set({ revokedAt: now(), updatedAt: now() })
+    .where(and(eq(s.apiKeys.id, id), eq(s.apiKeys.orgId, ctx.orgId), isNull(s.apiKeys.revokedAt))).returning({ id: s.apiKeys.id });
+  if (!r.length) throw new NotFoundError("That key");
+}
+
+/** For /api/v1: resolve a bearer key to its org. Updates last-used at most once a minute. */
+export async function authenticateApiKey(secret: string): Promise<{ orgId: string; keyId: string } | null> {
+  if (!/^rpt_[A-Za-z0-9]{24}$/.test(secret)) return null;
+  const [k] = await db.select().from(s.apiKeys).where(and(eq(s.apiKeys.keyHash, hashToken(secret)), isNull(s.apiKeys.revokedAt)));
+  if (!k) return null;
+  await db.update(s.apiKeys).set({ lastUsedAt: now() })
+    .where(and(eq(s.apiKeys.id, k.id), or(isNull(s.apiKeys.lastUsedAt), lt(s.apiKeys.lastUsedAt, new Date(Date.now() - 60_000).toISOString()))));
+  return { orgId: k.orgId, keyId: k.id };
 }
 
 /* ───────────── integrations (S14) ───────────── */
 
 export async function listIntegrations(ctx: Ctx): Promise<Integration[]> {
   await simulate();
-  return store().integrations.filter((i) => i.orgId === ctx.orgId);
+  const rows = await db.select().from(s.integrations).where(eq(s.integrations.orgId, ctx.orgId));
+  return rows.map((i) => ({ orgId: i.orgId, kind: i.kind, status: i.status, detail: i.detail, updatedAt: iso(i.updatedAt)! }));
 }
 
-export async function connectIntegration(ctx: Ctx, kind: IntegrationKind) {
+/** Each integration needs its own OAuth app (see replica/backend.md). Until one is configured this says so. */
+export async function connectIntegration(ctx: Ctx, kind: IntegrationKind): Promise<void> {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  s.integrations = s.integrations.filter((i) => !(i.orgId === ctx.orgId && i.kind === kind));
-  s.integrations.push({ orgId: ctx.orgId, kind, status: "connected", detail: "Connected just now", updatedAt: now() });
+  const name = kind[0].toUpperCase() + kind.slice(1);
+  const envKey = `${kind.toUpperCase()}_CLIENT_ID`;
+  if (!process.env[envKey]) throw new Error(`Connecting ${name} isn't set up on this server yet (${envKey} is missing).`);
+  throw new Error(`Connecting ${name} ships in a later release.`);
 }
 
 export async function disconnectIntegration(ctx: Ctx, kind: IntegrationKind) {
   await simulate();
   assertAdmin(ctx);
-  const s = store();
-  s.integrations = s.integrations.filter((i) => !(i.orgId === ctx.orgId && i.kind === kind));
+  await db.delete(s.integrations).where(and(eq(s.integrations.orgId, ctx.orgId), eq(s.integrations.kind, kind)));
 }
 
 /* ───────────── knowledge (S09) ───────────── */
 
 export async function listKnowledge(ctx: Ctx, repoId: string): Promise<KnowledgeDoc[]> {
   await simulate();
+  if (!isUuid(repoId)) return [];
+  const rows = await db.select().from(s.knowledgeDocs).where(and(eq(s.knowledgeDocs.orgId, ctx.orgId), eq(s.knowledgeDocs.repoId, repoId)));
   const order = (p: string) => (p === "index" ? 0 : p === "reverts" ? 2 : 1);
-  return store()
-    .knowledge.filter((d) => d.orgId === ctx.orgId && d.repoId === repoId)
+  return rows
+    .map((d) => ({ id: d.id, orgId: d.orgId, repoId: d.repoId, path: d.path, title: d.title, bodyMd: d.bodyMd, editedBy: d.editedBy, updatedAt: iso(d.updatedAt)! }))
     .sort((a, b) => order(a.path) - order(b.path) || a.title.localeCompare(b.title));
 }
 
 export async function updateKnowledgeDoc(ctx: Ctx, id: string, bodyMd: string) {
   await simulate();
   assertAdmin(ctx);
-  const d = store().knowledge.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!d) throw new NotFoundError("That page");
-  d.bodyMd = bodyMd;
-  d.editedBy = ctx.userId;
-  d.updatedAt = now();
+  if (!isUuid(id)) throw new NotFoundError("That page");
+  const r = await db.update(s.knowledgeDocs).set({ bodyMd, editedBy: ctx.userId, editedAt: now(), updatedAt: now() })
+    .where(and(eq(s.knowledgeDocs.id, id), eq(s.knowledgeDocs.orgId, ctx.orgId))).returning({ id: s.knowledgeDocs.id });
+  if (!r.length) throw new NotFoundError("That page");
 }
 
 export async function getUserName(userId: string | null): Promise<string | null> {
-  if (!userId) return null;
-  return store().users.find((u) => u.id === userId)?.name ?? null;
+  if (!userId || !isUuid(userId)) return null;
+  const [u] = await db.select({ name: s.users.name }).from(s.users).where(eq(s.users.id, userId));
+  return u?.name ?? null;
 }
 
-export async function getFinding(ctx: Ctx, id: string): Promise<Finding> {
-  await simulate();
-  const f = store().findings.find((x) => x.id === id && x.orgId === ctx.orgId);
-  if (!f) throw new NotFoundError("That finding");
-  return f;
+/* ───────────── helpers ───────────── */
+
+export function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+export function appUrl() {
+  return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }

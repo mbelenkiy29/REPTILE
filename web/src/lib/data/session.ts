@@ -38,7 +38,12 @@ export async function requireOrg(): Promise<OrgContext> {
 /** Dev-only switches so error and loading states can be seen without breaking anything. */
 export async function simulate() {
   if (process.env.NODE_ENV === "production" && process.env.SHOW_DESIGN !== "1") return;
-  const sim = (await cookies()).get(SIM_COOKIE)?.value;
+  let sim: string | undefined;
+  try {
+    sim = (await cookies()).get(SIM_COOKIE)?.value;
+  } catch {
+    return; // outside a request (worker, tests)
+  }
   if (sim === "slow") await new Promise((r) => setTimeout(r, 1500));
   if (sim === "error") throw new Error("Simulated failure: the data layer is set to fail in the dev panel.");
 }
