@@ -1,0 +1,305 @@
+{
+ "_about": "REPTILE: AI code review. Generic themes from the skill plus the category's own words. Themes reviews.py sorts feedback into. Patterns are Python regular expressions, matched case-insensitively against the review text. kind is complaint (something users hate) or request (something users want that is missing). Edit freely: add the app category's own words (for a booking app: double booking, time zone, no-show).",
+ "request_patterns": [
+  "\\bi wish\\b",
+  "\\bplease add\\b",
+  "\\bwould be (nice|great|good|helpful)\\b",
+  "\\bwould love\\b",
+  "\\bneeds? (a|an|the|to|more)\\b",
+  "\\bno way to\\b",
+  "\\bthere'?s no (way|option)\\b",
+  "\\b(can'?t|cannot|unable to) (even )?(add|change|edit|set|choose|export|import|customi[sz]e|connect|undo|delete|turn off)\\b",
+  "\\b(missing|lacks|lacking)\\b",
+  "\\bdoesn'?t (have|support|let|allow)\\b",
+  "\\bif only\\b",
+  "\\bfeature request\\b",
+  "\\bwhy (can'?t|isn'?t|doesn'?t)\\b"
+ ],
+ "themes": [
+  {
+   "id": "noise",
+   "label": "Too many comments / false positives",
+   "kind": "complaint",
+   "patterns": [
+    "\\bfalse positives?\\b",
+    "\\bnois(e|y)\\b",
+    "\\bspam(my|s)?\\b",
+    "\\btoo many comments\\b",
+    "\\bwall of\\b",
+    "\\bnitpick(s|ing|y)?\\b",
+    "\\bnits?\\b",
+    "\\birrelevant\\b",
+    "\\bverbose\\b",
+    "\\bsignal[- ]to[- ]noise\\b"
+   ]
+  },
+  {
+   "id": "wrong",
+   "label": "Wrong or hallucinated findings",
+   "kind": "complaint",
+   "patterns": [
+    "\\bhallucinat",
+    "\\bwrong\\b",
+    "\\bincorrect\\b",
+    "\\bmade up\\b",
+    "\\bconfidently\\b",
+    "\\bnot a bug\\b",
+    "\\bmisunderst"
+   ]
+  },
+  {
+   "id": "missed",
+   "label": "Misses real bugs / shallow context",
+   "kind": "complaint",
+   "patterns": [
+    "\\bmiss(ed|es|ing)? (the )?(bug|issue)s?\\b",
+    "\\bshallow\\b",
+    "\\bonly (looks at|reads) the diff\\b",
+    "\\bno context\\b",
+    "\\bcontext\\b",
+    "\\bcaught nothing\\b"
+   ]
+  },
+  {
+   "id": "speed",
+   "label": "Slow reviews",
+   "kind": "complaint",
+   "patterns": [
+    "\\bslow\\b",
+    "\\btakes? (forever|minutes|ages)\\b",
+    "\\blatency\\b",
+    "\\bwait(ing)? for\\b",
+    "\\btimes? out\\b"
+   ]
+  },
+  {
+   "id": "rereview",
+   "label": "Re-reviews repeat old comments",
+   "kind": "complaint",
+   "patterns": [
+    "\\bre-?review",
+    "\\bsame comments?\\b",
+    "\\brepeat(s|ed|ing)?\\b",
+    "\\bevery push\\b",
+    "\\bincremental\\b",
+    "\\bduplicate comments?\\b"
+   ]
+  },
+  {
+   "id": "config",
+   "label": "Hard to configure or tune",
+   "kind": "complaint",
+   "patterns": [
+    "\\bconfig(ure|uration)?\\b",
+    "\\bstrictness\\b",
+    "\\bignore (files|patterns|paths)\\b",
+    "\\bcan'?t turn off\\b",
+    "\\bsettings\\b",
+    "\\brules?\\b"
+   ]
+  },
+  {
+   "id": "learning",
+   "label": "Doesn't learn from feedback",
+   "kind": "complaint",
+   "patterns": [
+    "\\bdoesn'?t learn\\b",
+    "\\bkeeps? (flagging|saying|suggesting)\\b",
+    "\\bignores? (our|my) (feedback|rules|style)\\b",
+    "\\bthumbs\\b"
+   ]
+  },
+  {
+   "id": "codeaccess",
+   "label": "Code privacy / self-hosting",
+   "kind": "complaint",
+   "patterns": [
+    "\\bself[- ]?host",
+    "\\bon[- ]prem",
+    "\\bour code\\b",
+    "\\bsource code\\b",
+    "\\bsoc ?2\\b",
+    "\\btrain(ing|ed)? on\\b",
+    "\\bdata retention\\b"
+   ]
+  },
+  {
+   "id": "vcs",
+   "label": "Code host support",
+   "kind": "request",
+   "patterns": [
+    "\\bbitbucket\\b",
+    "\\bazure devops\\b",
+    "\\bgitlab\\b",
+    "\\bgithub enterprise\\b",
+    "\\bgitea\\b"
+   ]
+  },
+  {
+   "id": "local",
+   "label": "Review before the PR (CLI / IDE)",
+   "kind": "request",
+   "patterns": [
+    "\\bcli\\b",
+    "\\bbefore (opening|i open) (a|the) pr\\b",
+    "\\blocal(ly)?\\b",
+    "\\bide\\b",
+    "\\bvs ?code\\b",
+    "\\bpre-?commit\\b"
+   ]
+  },
+  {
+   "id": "pricing",
+   "label": "Price and paywalls",
+   "kind": "complaint",
+   "patterns": [
+    "\\bexpensive\\b",
+    "\\boverpriced\\b",
+    "\\bpric(e|es|ey|ing)\\b",
+    "\\bpaywall",
+    "\\bsubscription\\b",
+    "\\bper (month|seat|user)\\b",
+    "\\bfree (plan|tier|version)\\b",
+    "\\bupgrade to\\b",
+    "\\bpremium\\b",
+    "\\bnot worth\\b",
+    "\\bcost(s|ly)?\\b"
+   ]
+  },
+  {
+   "id": "billing",
+   "label": "Billing, cancelling and refunds",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcharged\\b",
+    "\\brefund",
+    "\\bcancel(l?ing|l?ed|lation)?\\b",
+    "\\bauto.?renew",
+    "\\bhidden (fee|charge)",
+    "\\bbilling\\b",
+    "\\bscam\\b",
+    "\\bcredit card\\b"
+   ]
+  },
+  {
+   "id": "bugs",
+   "label": "Bugs and crashes",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcrash(es|ed|ing)?\\b",
+    "\\bbugs?\\b",
+    "\\bbuggy\\b",
+    "\\bglitch",
+    "\\bfreez(e|es|ing)\\b",
+    "\\bbroken\\b",
+    "\\b(doesn'?t|does not|stopped) work",
+    "\\bnot working\\b",
+    "\\berror\\b"
+   ]
+  },
+  {
+   "id": "performance",
+   "label": "Slow, laggy, heavy",
+   "kind": "complaint",
+   "patterns": [
+    "\\bslow\\b",
+    "\\blag(gy|s)?\\b",
+    "\\bloading\\b",
+    "\\btakes forever\\b",
+    "\\bbattery\\b",
+    "\\bsluggish\\b",
+    "\\bheavy\\b"
+   ]
+  },
+  {
+   "id": "ux",
+   "label": "Confusing or clunky to use",
+   "kind": "complaint",
+   "patterns": [
+    "\\bconfus",
+    "\\bhard to (use|find|navigate|understand)\\b",
+    "\\bcomplicated\\b",
+    "\\bcluttered\\b",
+    "\\bunintuitive\\b",
+    "\\bnot intuitive\\b",
+    "\\bclunky\\b",
+    "\\btoo many (steps|clicks|taps)\\b",
+    "\\blearning curve\\b",
+    "\\bcan'?t find\\b"
+   ]
+  },
+  {
+   "id": "support",
+   "label": "Support that does not answer",
+   "kind": "complaint",
+   "patterns": [
+    "\\bcustomer (service|support)\\b",
+    "\\bsupport (team|is|was)\\b",
+    "\\bno (response|reply)\\b",
+    "\\bnever (replied|responded|heard back)\\b",
+    "\\bticket\\b",
+    "\\bchat ?bot\\b"
+   ]
+  },
+  {
+   "id": "privacy",
+   "label": "Privacy and permissions",
+   "kind": "complaint",
+   "patterns": [
+    "\\bprivacy\\b",
+    "\\btracking\\b",
+    "\\bsell(s|ing)? (my )?data\\b",
+    "\\bpermissions?\\b",
+    "\\bcreepy\\b"
+   ]
+  },
+  {
+   "id": "integrations",
+   "label": "Integrations, import and export",
+   "kind": "request",
+   "patterns": [
+    "\\bintegrat",
+    "\\bzapier\\b",
+    "\\bgoogle (calendar|sheets|drive)\\b",
+    "\\boutlook\\b",
+    "\\bslack\\b",
+    "\\bapi\\b",
+    "\\bexport\\b",
+    "\\bimport\\b",
+    "\\bcsv\\b",
+    "\\bwebhook"
+   ]
+  },
+  {
+   "id": "platforms",
+   "label": "Platforms, offline and mobile",
+   "kind": "request",
+   "patterns": [
+    "\\boffline\\b",
+    "\\bandroid\\b",
+    "\\bipad\\b",
+    "\\btablet\\b",
+    "\\bdesktop app\\b",
+    "\\bmac app\\b",
+    "\\bwindows\\b",
+    "\\bmobile (app|version)\\b",
+    "\\bweb version\\b"
+   ]
+  },
+  {
+   "id": "customisation",
+   "label": "Customisation and control",
+   "kind": "request",
+   "patterns": [
+    "\\bcustomi[sz]",
+    "\\bdark mode\\b",
+    "\\btheme\\b",
+    "\\bbranding\\b",
+    "\\bwhite.?label\\b",
+    "\\btemplates?\\b",
+    "\\bsettings?\\b",
+    "\\boption to\\b"
+   ]
+  }
+ ]
+}
