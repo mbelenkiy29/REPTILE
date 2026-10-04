@@ -187,6 +187,18 @@ export async function applyStripeEvent(event: Stripe.Event): Promise<boolean> {
 
 /* ───────────── usage metering (worker: report-usage) ───────────── */
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * One usage row per completed review (the worker calls this in the transaction that completes the review).
+ * Only reviews done on the paid plan are billable: trial and free reviews never reach Stripe, even after an upgrade.
+ */
+export async function recordUsage(tx: Tx, org: Pick<typeof s.organizations.$inferSelect, "id" | "plan">, reviewId: string, credits: number) {
+  await tx.insert(s.usageEvents).values({
+    orgId: org.id, reviewId, credits, billable: org.plan === "pro", periodStart: new Date().toISOString().slice(0, 8) + "01",
+  }).onConflictDoNothing();
+}
+
 /** Report this month's reviews past the included amount to the Stripe Meter. Idempotent per usage row. */
 export async function reportUsage(log = console.log) {
   if (!billingConfigured() || !process.env.STRIPE_METER_EVENT) return 0;
@@ -197,7 +209,7 @@ export async function reportUsage(log = console.log) {
              (select count(*) from memberships m where m.org_id = u.org_id) * o.included_reviews_per_seat as included
       from usage_events u join organizations o on o.id = u.org_id
       where u.period_start = date_trunc('month', now() at time zone 'utc')::date
-        and o.plan = 'pro' and o.stripe_customer_id is not null)
+        and u.billable and o.plan = 'pro' and o.stripe_customer_id is not null)
     select id, org_id, customer, n > included as over from month where reported_to_stripe_at is null`);
   let sent = 0;
   for (const r of rows) {

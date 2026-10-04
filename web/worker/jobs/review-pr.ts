@@ -5,6 +5,7 @@
 import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import picomatch from "picomatch";
 import { db, schema as s, sql } from "@/db";
+import { recordUsage } from "@/lib/billing";
 import { toFinding } from "@/lib/data";
 import { gitHost, type GitHost, type PrFile, type ReviewCommentInput } from "@/lib/github";
 import { checkRunTitle, fingerprint, renderInlineComment, renderSummary, SUMMARY_MARKER } from "@/lib/review/markdown";
@@ -184,7 +185,7 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
       await tx.update(s.reviews).set({
         status: "completed", ...reviewBits, creditsUsed: credits, inputTokens, outputTokens, completedAt: now(), updatedAt: now(), error: null,
       }).where(eq(s.reviews.id, reviewId));
-      await tx.insert(s.usageEvents).values({ orgId: repo.orgId, reviewId, credits, periodStart: now().slice(0, 8) + "01" }).onConflictDoNothing();
+      await recordUsage(tx, org, reviewId, credits);
     });
     return { result: "completed", findings: candidates.length, posted: comments.length };
   } catch (e) {

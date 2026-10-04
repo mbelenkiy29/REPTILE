@@ -13,7 +13,8 @@ describe.skipIf(!url)("Stripe billing", async () => {
   const { closeDb, db, schema: s } = await import("@/db");
   const { seedId } = await import("@/db/ids");
   const { setJobSender } = await import("@/lib/jobs");
-  const { applyStripeEvent, handleStripeWebhook, SignatureError } = await import("./index");
+  const { applyStripeEvent, handleStripeWebhook, recordUsage, reportUsage, stripe, SignatureError } = await import("./index");
+  const { createOrganization } = await import("@/lib/data");
   const org = seedId("o_side");
   const jobs: { name: string; data: unknown }[] = [];
   const event = (id: string, type: string, object: object) => ({ id, type, object: "event", data: { object } }) as unknown as Stripe.Event;
@@ -62,4 +63,46 @@ describe.skipIf(!url)("Stripe billing", async () => {
     const rows = await db.select().from(s.webhookDeliveries).where(eq(s.webhookDeliveries.deliveryId, "evt_5"));
     expect(rows).toHaveLength(0);
   });
+
+  it("BUG-003 reviews done during the trial are never billed as overage after upgrading", async () => {
+    process.env.STRIPE_METER_EVENT = "reptile_review";
+    const sent: unknown[] = [];
+    const meter = stripe().billing.meterEvents as unknown as { create: (x: unknown) => Promise<object> };
+    const realCreate = meter.create;
+    meter.create = async (x) => { sent.push(x); return {}; };
+    try {
+      const { id } = await createOrganization(seedId("u_lena"), "Trial then paid");
+      const [o] = await db.select().from(s.organizations).where(eq(s.organizations.id, id));
+      expect(o.plan).toBe("trial");
+      // 55 reviews on the trial (1 seat × 50 included would put 5 over).
+      for (let i = 0; i < 55; i++) {
+        const [rev] = await db.insert(s.reviews).values(await reviewRow(id, i)).returning({ id: s.reviews.id });
+        await db.transaction((tx) => recordUsage(tx, o, rev.id, 1));
+      }
+      await reportUsage(() => {});
+      await db.update(s.organizations).set({ plan: "pro", billingStatus: "active", trialEndsAt: null, stripeCustomerId: "cus_trial_then_paid" }).where(eq(s.organizations.id, id));
+      expect(await reportUsage(() => {})).toBe(0);
+      expect(sent).toHaveLength(0);
+      // Paid reviews: the first 50 are included, the 51st is overage.
+      const paid = { ...o, plan: "pro" as const };
+      for (let i = 0; i < 51; i++) {
+        const [rev] = await db.insert(s.reviews).values(await reviewRow(id, 100 + i)).returning({ id: s.reviews.id });
+        await db.transaction((tx) => recordUsage(tx, paid, rev.id, 1));
+      }
+      expect(await reportUsage(() => {})).toBe(1);
+    } finally {
+      meter.create = realCreate;
+      delete process.env.STRIPE_METER_EVENT;
+    }
+  });
+
+  /** A completed review on a throwaway PR in the given org (usage rows reference reviews). */
+  async function reviewRow(orgId: string, n: number) {
+    let [inst] = await db.select().from(s.installations).where(eq(s.installations.orgId, orgId));
+    if (!inst) [inst] = await db.insert(s.installations).values({ orgId, externalInstallationId: 90_000_000 + Math.floor(Math.random() * 1e6), accountLogin: "trialco", accountType: "Organization" }).returning();
+    let [repo] = await db.select().from(s.repositories).where(eq(s.repositories.installationId, inst.id));
+    if (!repo) [repo] = await db.insert(s.repositories).values({ orgId, installationId: inst.id, providerRepoId: 90_000_000 + Math.floor(Math.random() * 1e6), fullName: "trialco/app", defaultBranch: "main" }).returning();
+    const [pr] = await db.insert(s.pullRequests).values({ orgId, repoId: repo.id, number: 1000 + n, title: `PR ${n}`, authorLogin: "dev", baseBranch: "main", headSha: `sha${n}`, labels: [], url: "https://example.test", openedAt: new Date().toISOString() }).returning();
+    return { orgId, pullRequestId: pr.id, headSha: `sha${n}`, trigger: "manual" as const, status: "completed" as const, filesReviewed: [], checked: [] };
+  }
 });

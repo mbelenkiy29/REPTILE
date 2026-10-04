@@ -283,6 +283,7 @@ export const usageEvents = pgTable("usage_events", {
   reviewId: uuid("review_id").unique().references(() => reviews.id, { onDelete: "set null" }),
   credits: smallint("credits").notNull(),
   periodStart: date("period_start", { mode: "string" }).notNull(),
+  billable: boolean("billable").notNull().default(true),
   reportedToStripeAt: ts("reported_to_stripe_at"),
   createdAt: created(),
 });
