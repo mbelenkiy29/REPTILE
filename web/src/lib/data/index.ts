@@ -824,3 +824,13 @@ export function isUuid(v: string) {
 export function appUrl() {
   return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
+
+/* ───────────── account ───────────── */
+
+export async function getAccount(userId: string) {
+  const [u] = await db.select().from(s.users).where(eq(s.users.id, userId));
+  if (!u) throw new NotFoundError("Your account");
+  const accs = await db.select({ provider: s.accounts.provider }).from(s.accounts).where(eq(s.accounts.userId, userId));
+  const [{ n }] = await db.select({ n: count() }).from(s.sessions).where(and(eq(s.sessions.userId, userId), gte(s.sessions.expires, new Date())));
+  return { user: toUser(u), providers: [...new Set(accs.map((a) => a.provider))], activeSessions: Number(n) };
+}

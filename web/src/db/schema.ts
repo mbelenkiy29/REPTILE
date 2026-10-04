@@ -13,7 +13,8 @@ const updated = () => ts("updated_at").notNull().defaultNow();
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: citext("email").unique(),
+  // citext in the database (case-insensitive); declared as text so the Auth.js adapter accepts the table.
+  email: text("email").unique(),
   name: text("name"),
   image: text("image"),
   githubLogin: text("github_login").unique(),

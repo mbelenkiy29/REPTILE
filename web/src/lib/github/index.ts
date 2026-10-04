@@ -9,12 +9,30 @@ const g = globalThis as unknown as { __reptileGitHost?: GitHost };
 /** The GitHub implementation in use. Tests replace it with setGitHost(fake). */
 export async function gitHost(): Promise<GitHost> {
   if (g.__reptileGitHost) return g.__reptileGitHost;
+  if (fakeMode()) return (g.__reptileGitHost = await devFake());
   const { octokitHost } = await import("./octokit");
   return octokitHost;
 }
 
 export function setGitHost(h: GitHost | undefined) {
   g.__reptileGitHost = h;
+}
+
+/** Local development without a GitHub App: GITHUB_FAKE=1 plus dev login (never on a public URL). */
+export function fakeMode() {
+  return process.env.GITHUB_FAKE === "1" && process.env.AUTH_DEV_LOGIN === "1" && /^http:\/\/(localhost|127\.0\.0\.1)/.test(process.env.APP_URL ?? "");
+}
+
+async function devFake(): Promise<GitHost> {
+  const { FakeGitHub } = await import("./fake");
+  const f = new FakeGitHub();
+  f.installations = [
+    { externalInstallationId: 61000001, accountLogin: "jordanlee", accountType: "User", repositorySelection: "selected",
+      repositories: [{ providerRepoId: 9001, fullName: "jordanlee/dotfiles", defaultBranch: "main", private: false }] },
+    { externalInstallationId: 61000002, accountLogin: "acme-labs", accountType: "Organization", repositorySelection: "selected",
+      repositories: ["prototype", "ml-pipeline", "design-tokens"].map((n, i) => ({ providerRepoId: 9100 + i, fullName: `acme-labs/${n}`, defaultBranch: "main", private: true })) },
+  ];
+  return f;
 }
 
 export const githubConfigured = () => !!(process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_CLIENT_ID);
@@ -48,7 +66,7 @@ export async function userGitHubToken(userId: string): Promise<string> {
 }
 
 export async function listUserInstallations(userId: string): Promise<UserInstallation[]> {
-  if (!g.__reptileGitHost && !githubConfigured()) return [];
-  const token = await userGitHubToken(userId);
+  if (!g.__reptileGitHost && !fakeMode() && !githubConfigured()) return [];
+  const token = g.__reptileGitHost || fakeMode() ? "fake-user-token" : await userGitHubToken(userId);
   return (await gitHost()).listUserInstallations(token);
 }

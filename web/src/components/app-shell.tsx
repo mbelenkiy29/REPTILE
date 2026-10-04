@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Dialog as D } from "radix-ui";
 import {
   BookOpen, ChartColumn, Check, ChevronsUpDown, CreditCard, FlaskConical, FolderGit2, History, KeyRound, LogOut, Menu,
-  PanelLeft, Plug, Plus, ScrollText, SlidersHorizontal, Users, X, type LucideIcon,
+  PanelLeft, Plug, Plus, ScrollText, SlidersHorizontal, UserRound, Users, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStored, writeStored } from "@/lib/use-stored";
@@ -16,7 +16,6 @@ import { Tooltip } from "./ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { toast } from "./ui/toaster";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 const main: NavItem[] = [
@@ -160,7 +159,6 @@ function DevPanel({ sim, collapsed }: { sim: "none" | "slow" | "error"; collapse
         onClick={() =>
           start(async () => {
             await resetData();
-            toast.success("Seed data restored");
           })
         }
         className="mt-1.5 text-accent underline-offset-2 hover:underline disabled:opacity-50"
@@ -189,6 +187,9 @@ function UserMenu({ user }: { user: { name: string; email: string } }) {
           <span className="block truncate">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/settings/account"><UserRound aria-hidden /> Your account</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => signOut()}>
           <LogOut aria-hidden /> Sign out
         </DropdownMenuItem>

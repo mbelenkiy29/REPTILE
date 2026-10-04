@@ -28,6 +28,11 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
       </p>
 
       <div className="mt-6 flex flex-col gap-4">
+        {sp.error === "config" && (
+          <Alert variant="danger" title="GitHub isn't connected to this server yet" live>
+            The GitHub App isn&apos;t configured (GITHUB_APP_SLUG and its keys). See replica/backend.md for the steps.
+          </Alert>
+        )}
         {sp.error === "failed" && (
           <Alert variant="danger" title="The install didn't finish" live>
             GitHub sent you back before the app was installed. Try again, and pick at least one repository.

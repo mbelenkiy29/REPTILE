@@ -10,5 +10,7 @@ export default defineConfig({
     fileParallelism: false,
     globalSetup: ["./src/test/global-setup.ts"],
     testTimeout: 20_000,
+    // next-auth imports "next/server" without an extension; let Vite resolve it.
+    server: { deps: { inline: ["next-auth"] } },
   },
 });

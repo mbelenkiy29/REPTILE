@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Fake auth gate: no session cookie → sign-in page. /replica-backend swaps the cookie check for Auth.js.
+// Cheap gate: no session cookie → sign-in page. Pages still verify the session against the database (requireOrg).
+const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"];
+
 export function proxy(req: NextRequest) {
-  if (req.cookies.get("rp_session")) return NextResponse.next();
+  if (SESSION_COOKIES.some((c) => req.cookies.get(c))) return NextResponse.next();
   const url = new URL("/login", req.url);
   const next = req.nextUrl.pathname + req.nextUrl.search;
   if (next !== "/") url.searchParams.set("next", next);

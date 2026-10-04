@@ -23,6 +23,9 @@ export const db: DB = new Proxy({} as DB, {
   },
 });
 
+/** The real Drizzle instance (some libraries check its class, which the lazy proxy above can't pass). */
+export const getDb = (): DB => inst().db;
+
 /** Raw client for the few queries Drizzle can't express (pgvector search, advisory locks). */
 export const sql = () => inst().client;
 
