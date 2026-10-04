@@ -45,6 +45,7 @@ describe("validateConfigText", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.issues[0].message).toMatch(/Unknown setting: strictnes/);
+      expect(r.issues[0].line).toBe(3);
     }
   });
   it("rejects strictness out of range and empty comment types", () => {

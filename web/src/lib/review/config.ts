@@ -103,7 +103,8 @@ export function validateConfigText(text: string): { ok: true; config: ConfigFile
     ok: false,
     issues: r.error.issues.map((i) => {
       const path = i.path.join(".");
-      const key = i.path.find((p) => typeof p === "string");
+      // Unknown keys are reported on the parent object; locate the first unknown key itself.
+      const key = i.code === "unrecognized_keys" ? i.keys[0] : [...i.path].reverse().find((p) => typeof p === "string");
       const idx = key ? text.indexOf(`"${String(key)}"`) : -1;
       const message =
         i.code === "unrecognized_keys"
