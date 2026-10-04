@@ -22,11 +22,16 @@ marker should come off. Unconfirmed ideas are listed under "To check" at the bot
 | BUG-011 | S3 | Labels in a repository's own settings never started a review | fixed in f3d07b0 |
 | BUG-012 | S3 | "Fix all" 404 once an org has 200+ newer reviews | fixed in e4b6e58 |
 | BUG-015 | S3 | Loading skeletons fail axe and aren't announced | fixed in 6f989a6 |
+| BUG-016 | S3 | Trial and Free orgs told reviews past the allowance are "billed per review" | fixed in 7f4f099 |
+| BUG-017 | S4 | Invitees to a Free org told to "choose the Team plan", which they can't | fixed in 7f4f099 |
 | BUG-002 | S3 | A save that fails on the network replaces the page and loses the input | open |
 | BUG-013 | S3 | Fix links from GitHub 404 while another of your orgs is active | open |
 | BUG-014 | S3 | Installing from GitHub's own page ends on "The install didn't finish" | open |
 
-By severity: S1 2 (2 fixed) · S2 4 (4 fixed) · S3 9 (6 fixed, 3 open) · S4 0. **No open S1 or S2.**
+By severity: S1 2 (2 fixed) · S2 4 (4 fixed) · S3 10 (7 fixed, 3 open) · S4 1 (1 fixed). **No open S1 or S2.**
+
+Second pass (after /replica-build added the Free plan, learning from review comments and the S15 change; build 9d661fd):
+2 new bugs, both fixed.
 
 ---
 
@@ -177,6 +182,34 @@ Status: fixed in 3bff6e8
 - Evidence: `e2e/known-bugs.spec.ts` › "BUG-015 …"; first seen as an intermittent axe failure in F04-H2.
 - Status: fixed in 6f989a6 (`role="status"`)
 
+### BUG-016: Trial and Free orgs told reviews past the allowance are "billed per review"
+
+- Severity: S3 (wrong billing information; nothing was actually charged, see BUG-003)
+- Flow / case: F09 / F09-E5, F09-E6
+- Screen: S13
+- Build: 9d661fd  Browser: Chromium 1440px
+
+Steps
+1. Trial org "Side project" (1 seat, 50 included) runs 55 reviews this month.
+2. Open Billing.
+
+Expected: no claim of charges (trial reviews aren't billed); on Free, the "free reviews used" notice only.
+Actual: "5 over the included amount, billed per review." under the usage meter, on trial and on Free alike.
+Evidence: `e2e/f08-f09-org.spec.ts` › "F09-E5 …", "F09-E6 …" (failed, pass after the fix).
+Fix: the meter's note depends on the plan: Team keeps "billed per review", trial says trial reviews aren't billed, Free shows none (its alert explains the pause).
+Status: fixed in 7f4f099
+
+### BUG-017: Invitees to a Free org told to "choose the Team plan", which they can't
+
+- Severity: S4 (copy)
+- Flow / case: F09 / F09-N5
+- Screen: invite page
+- Steps: an admin of a Free org created an invite earlier (or before switching to Free); the invitee opens the link and clicks Accept and join.
+- Expected: why it can't work and who can fix it. Actual: "The Free plan is for one person. Choose the Team plan to invite teammates." (the admin's message).
+- Evidence: `e2e/f08-f09-org.spec.ts` › "F09-N5 an invite to a Free org tells the invitee what to do".
+- Fix: "Solo is on the Free plan, which is for one person. Ask an admin of Solo to choose the Team plan, then open this link again."
+- Status: fixed in 7f4f099
+
 ### BUG-002: A save that fails on the network replaces the page and loses the input
 
 - Severity: S3 (workaround: retype after reconnecting)
@@ -243,3 +276,11 @@ Ranked. These came from a code read; none was confirmed in this environment.
 12. `scripts/slice.mjs` failed once right after a full e2e run (Node stack, no assertion text kept) and passed on two reruns,
     including the same sequence. Not reproduced.
 13. Trial usage rows (now `billable = false`) are never marked reported; harmless, but the partial index on unreported rows grows.
+14. A review comment on a PR REPTILE hasn't recorded yet (opened before linking, never mentioned) isn't learned from
+    (`pull request unknown`). The mention path fetches such PRs; this one could too.
+15. Learned-from review comments are kept indefinitely (only the last 30 days are used). Consider purging them in `cleanup`
+    after 90 days, and say so on the security page: they are customer-written text.
+16. Reviews used during the trial count toward the Free allowance in the month an org switches to Free (same usage rows).
+    Probably fine; decide and say it on S13 if not.
+17. An org that switches to Free with invites still pending keeps them listed on S12; they can't be accepted (BUG-017's
+    message explains), but cancelling them on the switch would be tidier.

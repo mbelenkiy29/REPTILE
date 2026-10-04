@@ -144,17 +144,41 @@ Not built (features.csv: CLI is a known gap). Nothing to test.
 | X-5 | security headers | any page | frame-ancestors none, nosniff, HSTS | e2e || ✓ |
 | X-6 | sign out everywhere | /settings/account | all sessions deleted, other tab signed out | e2e || ✓ |
 
+## Second pass (after /replica-build: Free plan, learning from review comments, S15)
+
+Build 9d661fd, fixes in 7f4f099. Everything above was re-run as well.
+
+| case | flow | type | steps | expected | auto | result |
+| --- | --- | --- | --- | --- | --- | --- |
+| F09-H5 | billing | happy | trial ends → Continue on Free | Free card, invites off on S12 | e2e | ✓ |
+| F09-E4 | billing | edge: several members | canceled Team org with 2 members | no Free button, says why | e2e | ✓ |
+| F09-E5 | billing | edge: allowance used | Free org at 52/50 | "free reviews used" alert, nothing about billing | e2e | ✓ after fix (✗ BUG-016) |
+| F09-E6 | billing | edge: trial over allowance | trial at 55/50 | no "billed per review" | e2e | ✓ after fix (✗ BUG-016) |
+| F09-E7 | billing | edge: double click | double-click Continue on Free | one switch, no error | e2e | ✓ |
+| F09-E8 | billing | negative: paying org | Team org on S13 | no Free option | e2e | ✓ |
+| F09-N5 | billing | negative: invite into Free | invitee accepts | refused, told to ask an admin | e2e | ✓ after fix (✗ BUG-017) |
+| F09-N6 | billing | negative: member / paid | member or Team org calls continueOnFree | refused | vitest | ✓ |
+| F09-E9 | billing | edge: allowance in the worker | Free org at 50 used, or 2 members | review skipped with a reason; Free reviews not billable | vitest | ✓ |
+| F09-H6 | api | happy | S15 | shows curl calls for this server, no CLI | e2e | ✓ |
+| F05-H3 | learning | happy | teammate's inline review comment (webhook) | kept as human_comment | e2e + vitest | ✓ |
+| F05-E2 | learning | negative | outsider, bot, "lgtm" | not kept | e2e + vitest | ✓ |
+| F05-E3 | learning | edge: redelivery | same comment twice | kept once | e2e + vitest | ✓ |
+| F05-E4 | learning | edge: unknown PR | comment on a PR not recorded | skipped, 202 (gap in "To check") | e2e | ✓ |
+| F05-H4 | learning | happy | learn-rules with only comments | suggested rule citing them, linked to the PR | vitest | ✓ |
+| F05-E6 | learning | edge: HTML/emoji in evidence | S08 suggested rule | shown as text, no script, axe clean | e2e | ✓ |
+| X-1 | all | a11y | new states S13-free, S12-free at 1440/390 | 0 violations | screens.mjs | ✓ |
+
 ## Results
 
 | suite | cases | passed | failed | notes |
 | --- | --- | --- | --- | --- |
-| e2e (`npm run e2e`) | 97 | 94 | 0 | 3 expected failures = open S3 bugs (BUG-002, BUG-013, BUG-014), marked `test.fail` |
-| vitest (`npm run test:db`) | 89 | 89 | 0 | 13 new tests for bugs found here |
+| e2e (`npm run e2e`) | 109 | 106 | 0 | 3 expected failures = open S3 bugs (BUG-002, BUG-013, BUG-014), marked `test.fail` |
+| vitest (`npm run test:db`) | 93 | 93 | 0 | |
 | flow scripts (`slice`, `config-flow`, `org-flow`, `live-loop`) | 4 | 4 | 0 | |
-| screen check (`scripts/screens.mjs`) | 52 | 52 | 0 | 26 states × 2 widths |
+| screen check (`scripts/screens.mjs`) | 56 | 56 | 0 | 28 states × 2 widths |
 | manual (real accounts) | 5 | — | — | not run: needs a GitHub App, Stripe, Resend, Google |
 
-Bugs: 15 found, 12 fixed, 3 open (all S3). See `bugs.md`.
+Bugs: 17 found, 14 fixed, 3 open (all S3). See `bugs.md`.
 
 ## Manual checklist (needs real accounts; run before /replica-deploy)
 
