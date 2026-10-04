@@ -63,6 +63,10 @@
   --color-info-soft: var(--c-info-soft);
   --color-focus: var(--c-focus);
   --color-overlay: var(--c-overlay);
+  --color-chart-1: var(--c-chart-1);
+  --color-sev-p0: var(--c-sev-p0);
+  --color-sev-p1: var(--c-sev-p1);
+  --color-sev-p2: var(--c-sev-p2);
   --shadow-card: var(--sh-card);
   --shadow-pop: var(--sh-pop);
   --ease-out: var(--motion-ease);

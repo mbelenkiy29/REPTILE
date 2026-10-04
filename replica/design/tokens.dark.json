@@ -24,7 +24,11 @@
     "info": "#6db4ff",
     "info-soft": "#0e2135",
     "focus": "#8196ff",
-    "overlay": "#000000"
+    "overlay": "#000000",
+    "chart-1": "#3987e5",
+    "sev-p0": "#9ec5f4",
+    "sev-p1": "#3987e5",
+    "sev-p2": "#1c5cab"
   },
   "pairs": [
     [

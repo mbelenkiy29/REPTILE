@@ -230,3 +230,15 @@ These are markdown, not UI, but they are the screens users see most, so they hav
 - **Severity in markdown.** GitHub renders no custom colours, so severity is always written out (P0/P1/P2). We don't use emoji-only
   signals.
 - **Check run title.** e.g. `REPTILE · 2 findings (1 P0)`. The conclusion is `neutral` when there are P0s, `success` otherwise (see architecture).
+
+## Chart colours (added in /replica-build, S10)
+
+Validated with the dataviz skill's `validate_palette.js`, not by eye. The status roles (danger/warning/info) failed as a chart
+palette in light mode (danger↔warning: colour-blind ΔE 3.1, normal-vision ΔE 12.5), so charts don't use them.
+
+| token | light | dark | use |
+| --- | --- | --- | --- |
+| chart-1 | #2a78d6 | #3987e5 | single-series charts (reviews per day) |
+| sev-p0 / sev-p1 / sev-p2 | #184f95 / #3987e5 / #86b6ef | #9ec5f4 / #3987e5 / #1c5cab | findings by severity: an **ordinal** one-hue ramp (passes `--ordinal` in both modes); the most severe step has the most contrast against the surface in each theme |
+
+Charts always ship a legend (2+ series), a hover tooltip, and a table view of the same numbers. Severity text stays P0/P1/P2 badges elsewhere.
