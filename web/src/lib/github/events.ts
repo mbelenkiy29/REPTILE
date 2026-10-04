@@ -3,6 +3,7 @@
 import { and, eq, inArray, isNull, sql as dsql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { enqueue } from "@/lib/jobs";
+import { failStaleReviews } from "@/lib/review/stale";
 import { rateLimit, RateLimitError } from "@/lib/rate-limit";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -47,6 +48,7 @@ export async function queueReview(pr: typeof s.pullRequests.$inferSelect, trigge
     const review = await db.transaction(async (tx) => {
       // Serialize events for one PR so two deliveries can't both supersede and insert.
       await tx.execute(dsql`select pg_advisory_xact_lock(hashtext(${pr.id}))`);
+      await failStaleReviews(tx, pr.id);
       const live = await tx.select({ id: s.reviews.id, sha: s.reviews.headSha }).from(s.reviews)
         .where(and(eq(s.reviews.pullRequestId, pr.id), inArray(s.reviews.status, ["queued", "running"])));
       // Already reviewing this commit: nothing to do. Reviewing an older commit: replace it.

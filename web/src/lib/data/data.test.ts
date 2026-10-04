@@ -2,7 +2,7 @@
 // The rule under test: every read is scoped to the caller's org, every write checks the role,
 // and a second user in another org gets nothing back.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql as dsql } from "drizzle-orm";
 
 const url = process.env.TEST_DATABASE_URL;
 if (url) process.env.DATABASE_URL = url;
@@ -109,6 +109,23 @@ run("data layer", async () => {
       expect(first.status).toBe("queued");
       await expect(data.rerunReview(jordanAcme, acmeReview)).rejects.toThrow("already running");
       expect(jobs).toEqual([{ name: "review-pr", data: { reviewId: first.id } }]);
+    });
+
+    it("BUG-008 a review whose job died stops blocking new reviews after an hour", async () => {
+      // The review queued by the previous test never finishes: the worker crashed, or its job expired every attempt.
+      const [stuck] = await db.select().from(s.reviews).where(eq(s.reviews.status, "queued"));
+      // Backdate it past the set_updated_at trigger.
+      await db.transaction(async (tx) => {
+        await tx.execute(dsql`set local session_replication_role = replica`);
+        await tx.update(s.reviews).set({ status: "running", updatedAt: new Date(Date.now() - 2 * 3600_000).toISOString() }).where(eq(s.reviews.id, stuck.id));
+      });
+      const next = await data.rerunReview(jordanAcme, acmeReview);
+      expect(next.status).toBe("queued");
+      const [old] = await db.select().from(s.reviews).where(eq(s.reviews.id, stuck.id));
+      expect(old.status).toBe("failed");
+      expect(old.error).toMatch(/didn't finish/);
+      // A live review that is still within its time isn't touched.
+      await expect(data.rerunReview(jordanAcme, acmeReview)).rejects.toThrow("already running");
     });
 
     it("an org keeps at least one admin", async () => {

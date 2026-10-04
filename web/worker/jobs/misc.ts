@@ -1,6 +1,7 @@
 // The smaller jobs: answer-thread, sync-reactions, learn-rules, cleanup, billing-emails, send-email.
 import { and, eq, gte, inArray, isNotNull, lt, sql as dsql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { failStaleReviews } from "@/lib/review/stale";
 import { gitHost } from "@/lib/github";
 import { sendEmail } from "@/lib/email";
 import { enqueue } from "@/lib/jobs";
@@ -102,7 +103,8 @@ export async function cleanup() {
     await db.delete(s.knowledgeDocs).where(inArray(s.knowledgeDocs.repoId, gone.map((r) => r.id)));
   }
   await db.delete(s.jobFailures).where(lt(s.jobFailures.createdAt, new Date(Date.now() - 90 * day).toISOString()));
-  return { result: "clean", purgedRepos: gone.length };
+  const stale = await failStaleReviews();
+  return { result: "clean", purgedRepos: gone.length, staleReviews: stale.length };
 }
 
 /** Trials ending in about 3 days get one email per admin. */

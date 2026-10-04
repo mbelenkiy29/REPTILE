@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- Playwright fixtures call their argument `use`; they aren't React hooks. */
 // Shared fixtures: every page fails its test on a console error, an uncaught page error or any 5xx response.
 import { createHash } from "node:crypto";
 import { test as base, expect, type Page } from "@playwright/test";

@@ -4,6 +4,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql as dsql, sum } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { failStaleReviews } from "@/lib/review/stale";
 import { enqueue } from "@/lib/jobs";
 import { mergeConfig } from "@/lib/review/config";
 import { DEFAULT_CONFIG } from "@/lib/review/defaults";
@@ -434,6 +435,7 @@ export async function rerunReview(ctx: Ctx, id: string): Promise<Review> {
   const [r] = await db.select().from(s.reviews).where(and(eq(s.reviews.id, id), eq(s.reviews.orgId, ctx.orgId)));
   if (!r) throw new NotFoundError("That review");
   const [pr] = await db.select().from(s.pullRequests).where(eq(s.pullRequests.id, r.pullRequestId));
+  await failStaleReviews(db, r.pullRequestId);
   try {
     const [created] = await db.insert(s.reviews).values({
       orgId: ctx.orgId, pullRequestId: r.pullRequestId, headSha: pr.headSha, trigger: "manual", triggeredBy: ctx.userId, status: "queued",
