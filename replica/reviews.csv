@@ -1,1 +1,110 @@
 source,url,date,rating,text
+reddit,https://www.reddit.com/r/codereview/comments/1sqs5iw/sick_and_tired_of_greptile_what_are_the_best/,2026-04-20,,"SICK and tired of Greptile, what are the best alternatives?
+
+So I recently found out greptile has become usage based after finding at $200 bill, they didn't inform about this pricing change via email or anything, they just expect users to be okay with this. Moreover, you can't cancel their subscription without reaching out to support lmao. 
+
+Keeping this aside, their pricing model sucks either go fully usage based, give controls over billing OR seat based - PLEASE don't do this weird thing of doing a seat based+usage model, it's so confusing and people hate it. 
+
+Anyways, there is no way I continue with them after this, even the code reviews seem to be getting worse and I really don't trust their PR ratings either. What are the best alternatives - I do not mind usage based or seat based as long as the company is transparent with their billing."
+reddit,https://www.reddit.com/r/codex/comments/1t9a91q/what_are_you_doing_for_code_review/,2026-05-10,,"What are you doing for code review?
+
+I was using a 6 month free trial from Greptile and absolutely loved the experience. It was able to find good bugs and ignore the right things. I don't want to pay for it because I'm already paying for a $100 codex plan.
+
+I tried asking Codex for a PR code review in app, although it just highlighted a few things and didn't find any issues with it's generated code.
+
+When I was previously using Claude Code, it has a github integration, although I didn't think it was prompted well. It always found more issues in the same code. Issues that would sometimes be unreachable.
+
+I'm looking for an experience that's in between the codex and Claude Code one I mentioned &amp; Greptile seems to have nailed it."
+reddit,https://www.reddit.com/r/cursor/comments/1tulzd6/stuck_in_endless_codereview_cascades/,2026-06-02,,"Stuck in endless code-review cascades
+
+The more I disconnected from understanding the code that's written by AI, the less code I reviewed manually.   
+  
+We have like 3 review agents (CodeRabbit, cubic, Greptile) that analyze and review every pull request. 
+
+However, since I don't invest time in understanding the code, I also don't understand the review items - so I end up copying and pasting every item back and forth to the agent who implemented the code. 
+
+But every new commit that fixes an 'issue' triggers 3 more newly generated review findings - which I end up copying and pasting to the agent again. 
+
+Am I the only one with 3+ cycles on code reviews? Do I need to start understanding code again?"
+reddit,https://www.reddit.com/r/codereview/comments/1vnblkx/should_we_trust_ai_code_review_benchmarks/,2026-08-13,,"should we trust AI code review benchmarks?
+
+recently saw the Martian code review benchmark and some of the results surprised me. also found it weird that their online and offline benchmarks seem to produce pretty different rankings??
+
+i've tried most of the main code review bots at this point and still run multiple on PRs day to day. mostly macroscope and bugbot recently because i've found them less noisy than some of the others, but both rank fairly low on these benchmarks compared to what i've seen in actual use. not sure if these benchmarks consider latency btw, I've previously had greptile and coderabbit take 15+ mins to do a code review of similar quality that others took 1-2 mins to do.
+
+how do you evaluate code review tools?"
+reddit,https://www.reddit.com/r/codex/comments/1so65oj/how_easy_is_it_to_build_my_own_code_review_bot/,2026-04-17,,"How easy is it to build my own code review bot?
+
+I’ve used almost all code reviews bots at this point I think ( Macroscope, BugBot, Greptile etc.) they are all great tools and have helped me catch more or less 99% bugs. 
+
+But honestly thinking how hard would it be to build a harness of the same quality using codex/claude, is it even possible to build an agent as capable as these other bots?
+
+Btw this is not to say these companies have other great features too which I will keep on. Eg. I will still use cursor maybe not BugBot and only use Macroscopes slack agent cause that’s really helpful but SPECIFICALLY for code reviews I really want to build something of my own that is not as expensive as these tools and has similar performance."
+reddit,https://www.reddit.com/r/vibecoding/comments/1srxbxe/best_ai_code_review_for_vibe_coded_projects/,2026-04-21,,"I'm now looking for the best AI code review software that can connect to my Github and help catch bugs/hallucinations before merge. Extra points if it can explain the issues in plain english so I can learn along the way.
+
+I've looked into Coderabbit and Greptile, but they seem to be too robust for my use case."
+reddit,https://www.reddit.com/r/ClaudeCode/comments/1sf1mx9/is_everything_going_to_be_usage_based_now/,2026-04-07,,"Is everything going to be usage based now?
+
+Most good dev tools are moving to usage based pricing, I guess it's to them fair considering inference costs. It is still shocking how Claude Review pricing is so absurd now, even Macroscope went usage-based but it's like \~$1/review and not \~$20+/review. Greptile also seems reasonably priced, what is anthropic doing here?"
+reddit,https://www.reddit.com/r/ClaudeAI/comments/1vn8zwq/greptile_prompt_injection_in_pr_reviews/,2026-08-13,,"Sonnet caught Greptile using prompt injection to push their products through AI coding tools. Here's what happened:
+
+**E**very PR body also gets a ""Fix All in Greploop"" badge linking to their own IDE, with a `prompt` URL parameter containing instructions addressed to whatever AI agent opens that link — or, more importantly, whatever agent is just reading the PR body as part of normal work (summarizing it, reviewing it, etc.). It's not gated behind clicking the badge; the text is sitting in the page content any agent ingests.
+
+The instructions tell the agent to: check if Greptile's CLI is installed, and if not, fall back to an autonomous ""PUSH LOOP"" — fix issues, commit, push, wait for re-review, repeat up to 5 times with no human in the loop between iterations, never opening a new PR. Standard aggressive growth CTA territory so far."
+reddit,https://www.reddit.com/r/codereview/comments/1sqs5iw/comment/okbuq0z/,2026-05-06,,"Greptile has such a shady way to charge you - beware you all. 
+
+Also **the quality of the reviews by far does not justify the price**: stick with claude or codex or cursor - cheaper and better. 
+
+Look at this:
+
+I canceled the account few days ago. Then ""it will be canceled on period ends"". Ok, thats the only way. 
+
+But in the meantime (i had canceled it):
+
+they charge plus 30 usd for a new user - for just 1 PR;   
+they started charging per request - couple of bucks more;   
+I have NO WAY to cancel it immediately;  
+I have NO WAY to remove my charging credit cards details;  
+
+
+What kind of company **wont cancel your account** and **charge MORE AFTER you canceled it**?
+
+Shame on you Greptile."
+reddit,https://www.reddit.com/r/codereview/comments/1sqs5iw/comment/omdimls/,2026-05-17,,I just signed up bc of a paid YouTuber. I like his content but should not trust his objectivity. However I noticed the pr reviews became stale. It kept running pr reviews on an older commit hash. The automatic pr toggle I had toggled off and when I toggled back on it doesn't work. It kept on running reviews on older prs. I wasted 8 hours using this clumsy tool where is no support chat (not even an ai bot) or contact link. It just has a link for sales it seems. Maybe there is a link but going over to coderabbit. It's less dodgy and they have a contact link
+reddit,https://www.reddit.com/r/codereview/comments/1sqs5iw/comment/ottulqh/,2026-06-25,,"the heck is wrong with you guys? a marketing person in the team pushing a fix to a .md file shouldn't cost us $30.
+
+the $1 per review is also insane. I used to defend Greptile over Coderabbit for the past year, but I just can't anymore.
+
+At this point it's significantly cheaper to get another Claude Code subscription and just trigger a \`/code-review ultra\` on every PR, and you get the same (or better) results."
+reddit,https://www.reddit.com/r/codereview/comments/1sqs5iw/comment/oh9vdgc/,2026-04-20,,faced something similar but their team was pretty quick in getting it resolved and they were upfront about their mistake so I wouldn’t be so harsh on them. you should just email the maybe
+reddit,https://www.reddit.com/r/ClaudeAI/comments/1sfpopp/comment/oezlp4o/,2026-04-08,,it's cool. greptile and codex bot will catch those leg errors and you can feed it right back into your bot
+reddit,https://www.reddit.com/r/webdev/comments/1ouapni/comment/oidwjb4/,2026-04-26,,Been through the same thing. Greptile would be calm for a month then one big migration PR would eat the whole budget in a day.
+reddit,https://www.reddit.com/r/coderabbit/comments/1u62zwi/comment/orpjcn1/,2026-06-15,,I moved to greptile even though its probably more expensive (pay as you go) at least ir doesn't randomly refuse to review my PRs and get me out of my flow
+reddit,https://www.reddit.com/r/ClaudeCode/comments/1t9dqjs/comment/ol1d42n/,2026-05-10,,"Cool! The company I work at, we are a team of 6 using greptile. I think we are spending 200$ a month or so on it. This tool can help if it provides collaborative features."
+reddit,https://www.reddit.com/r/ProgrammerHumor/comments/1u2qss9/comment/oraklzx/,2026-06-12,,"We use automated review tools like Cursorbot and Greptile, which is fine and dandy. I think tools like these are great for self reviewing before opening up to the team, but most of the time the team just relies on an X/5 star confidence score, and that’s that."
+reddit,https://www.reddit.com/r/ExperiencedDevs/comments/1w5jn5u/comment/p7fphws/,2026-09-02,,"I've tested (and still testing) Greptile/Cubic/Copilot/CodeRabbit/gh-aw + provider's key (Deepseek/z.ai) and from what I see:
+
+\- If the codebase is shit, reviews are 90%+ off: either obscure edge case or proposed solution has completely wrong location - should be higher in upstream, for example;  
+\- Regarding time, it is about 5min + 1-2min for every additional 200 codelines."
+reddit,https://www.reddit.com/r/vibecoding/comments/1srxbxe/comment/ohl84fb/,2026-04-22,,"the issue with treating this as a tool choice is that CodeRabbit/Greptile/Surmado all have the same blind spot — they don't know *your* project's architecture, conventions, or what ""done"" looks like for you. They'll flag ""this function is too long"" while missing ""this entire approach won't work because you're calling Supabase from a client component."""
+reddit,https://www.reddit.com/r/ClaudeAI/comments/1ur2ml9/comment/owhbwmj/,2026-07-09,,Code quality is excellent and the smaller checkpoint chunks means things don't tend to go too afield. greptile review further confines problems.
+reddit,https://www.reddit.com/r/ClaudeCode/comments/1uadbiw/comment/osyair9/,2026-06-21,,"greptile is where it got interesting. four of them got 4/5, one got 3/5. the 3/5 was the only one with a real bug, it cached the image urls with no expiry so the gallery breaks after an hour. my /code-review max AND /security-review both missed it in session, greptile caught it on the PR. everything else it flagged was minor, dead code, a missing cookie flag, a perf nit, a duplicated translation. so the outside reviewer is the thing that earned its spot, it catches what your own in-session reviews dont."
+reddit,https://www.reddit.com/r/coderabbit/comments/1uqlt5e/comment/ox7ugnc/,2026-07-13,,"My open-source project received free offers from CodeRabbit and Greptile. Greptile is still doing great right now, but as for CodeRabbit... lol, 'Next review available in: 54 minutes'."
+reddit,https://www.reddit.com/r/vibecoding/comments/1v3j381/comment/oz47hmq/,2026-07-22,,"have good PR review systems (my favorite is Greptile, but Coderabbit is a solid backup)"
+reddit,https://www.reddit.com/r/nocode/comments/1u3fuyy/comment/orlb0oo/,2026-06-14,,wild seeing everyone start hitting the greptile tax wall at the same time lol
+reddit,https://www.reddit.com/r/cursor/comments/1vdeh5z/comment/p18n2vf/,2026-08-02,,"We have two AI code vrewiers, that trigger in Github on each push for PR:  CodeRabbit and Greptile
+
+Each of them is pretty good and finds other problems"
+reddit,https://www.reddit.com/r/selfhosted/comments/1tym7yt/comment/oq507bw/,2026-06-06,,"Maybe time to update the self-hosted docs:  Recommended: Anthropic Claude 3.7 Sonnet (as of Feb 2025) and OpenAI Embeddings
+
+Btw. loved Greptile the most out of the AI review tools, didn’t know you can self host it!"
+reddit,https://www.reddit.com/r/coderabbit/comments/1tystx9/comment/orc00h0/,2026-06-13,,"I'm getting ready to take my $60 a month and spend it on Greptile / Cursor BugBot, which have more transparent pricing."
+reddit,https://www.reddit.com/r/codereview/comments/1uuuv2i/comment/ox75nxp/,2026-07-13,,Greptile and Graphite are terrible.  Use CodeRabbit.
+reddit,https://www.reddit.com/r/ClaudeCode/comments/1trtis4/comment/opiimoz/,2026-06-03,,"Since Greptile reads those, it did catch a lot of inconsistencies and potential errors that might have bothered me down the road, so I do think it’s helpful. 
+
+Plus the placebo effect of thinking that I‘m getting „a second opinion“ instead of having another Claude agent doing the code review. 
+
+Idk, so far it’s been ok, just very expensive"
+reddit,https://www.reddit.com/r/selfhosted/comments/1tym7yt/comment/oqpgn6i/,2026-06-09,,"Do you know if it works on Gitea? From what I understand it uses github-specific hooks, and maybe something specific on gitlab as well, but I don't see anything about gitea. 
+
+I could do mirroring to github as a way to run it, but it looks like I can't mirror feature requests and PRs, just the code."

@@ -55,3 +55,11 @@ GitHub's App install and OAuth consent pages,onboarding,skip,yes,skip,owned by G
 Customer logos benchmarks mascot and T-Rex tier name,brand,skip,yes,skip,their brand and claims
 SOC 2 / air-gapped self-host Helm distribution,enterprise,skip,yes,skip,certification and ops not features; revisit later
 AWS Marketplace listing and partner deals,distribution,skip,yes,skip,partner deals
+Hard monthly spend cap with 80% warning and paused-on-cap PR summary,billing,should,no,no,"F1 in fixes.md; price/billing complaints (thin, Reddit only)"
+Docs-only and trivial PRs get a free light pass (not counted as a review),billing,should,no,no,F2 in fixes.md
+One-click cancel now in Billing plus card removal via Stripe portal,billing,should,no,no,F3 in fixes.md
+"Bounded re-reviews: only new changes, keep prior findings, post done, max 3 automatic rounds",review,should,no,partial,F4 in fixes.md; unresolved findings already carried across pushes
+Show reviewed commit SHA in summary and discard reviews whose head moved,review,should,no,no,F5 in fixes.md
+Explain the confidence score with its reasons; never present it as approval,review,should,no,no,F6 in fixes.md
+Test that summaries and comments carry no hidden agent instructions,security,should,no,partial,F7 in fixes.md; fix links already go to signed-in prompt pages
+"First-pass summary within 2 minutes, full review after; time-to-review in analytics",review,could,no,no,F8 in fixes.md
