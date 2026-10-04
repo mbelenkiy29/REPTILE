@@ -169,6 +169,30 @@ describe.skipIf(!url)("worker pipeline", async () => {
       model.review = original;
     });
 
+    it("BUG-009 a retried review completes the one check run it started", async () => {
+      const pr = await openPr(20, "sha20", file1, patch1);
+      const original = model.review.bind(model);
+      let calls = 0;
+      model.review = async (...a: Parameters<typeof original>) => { if (calls++ === 0) throw new Error("upstream timeout"); return original(...a); };
+      const id = (await queueReview(pr, "opened", "lenaf"))!;
+      await expect(runReview(id, { retryCount: 0, retryLimit: 2 })).rejects.toThrow("upstream timeout");
+      expect((await runReview(id, { retryCount: 1, retryLimit: 2 })).result).toBe("completed");
+      model.review = original;
+      const runs = gh.checkRuns.filter((c) => c.headSha === "sha20");
+      expect(runs).toHaveLength(1);
+      expect(runs[0].conclusion).toBeDefined();
+    });
+
+    it("BUG-010 a .reptile/config.json nearer the file can un-ignore what reptile.json ignores", async () => {
+      const doc = ["# Guide", "", "BUG: the install step is wrong", ""].join("\n");
+      const pr = await openPr(21, "sha21", doc, ["@@ -0,0 +1,3 @@", "+# Guide", "+", "+BUG: the install step is wrong"].join("\n"), "docs/guide.md");
+      gh.files.set(`${REPO}@sha21:reptile.json`, JSON.stringify({ ignorePatterns: ["**/*.md"] }));
+      gh.files.set(`${REPO}@sha21:docs/.reptile/config.json`, JSON.stringify({ ignorePatterns: [] }));
+      const id = (await queueReview(pr, "opened", "lenaf"))!;
+      const out = await runReview(id, attempt);
+      expect(out.result).toBe("completed");
+    });
+
     it("a superseded review stops without posting", async () => {
       const pr = await openPr(13, "sha7", file1, patch1);
       const id = (await queueReview(pr, "opened", "lenaf"))!;

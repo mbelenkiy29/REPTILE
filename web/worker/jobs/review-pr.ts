@@ -68,7 +68,8 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
       gh.listPullRequestFiles(instId, repo.fullName, pr.number),
     ]);
     const cfg = await loadPrConfig(gh, instId, repo, review.headSha, files.map((f) => f.filename));
-    const decision = shouldReview(cfg.repo, {
+    // Ignore patterns were applied per file above (the nearest .reptile/ config wins), so don't apply the repo's again.
+    const decision = shouldReview({ ...cfg.repo, ignorePatterns: [] }, {
       isDraft: pr.isDraft, authorLogin: pr.authorLogin, baseBranch: pr.baseBranch, labels: pr.labels, trigger: review.trigger,
       changedFiles: files.filter((f) => f.status !== "removed").map((f) => f.filename).filter((p) => !matchesAny(cfg.forFile(p).ignorePatterns, p)),
     });
@@ -77,7 +78,8 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
     const reviewable = files.filter((f) => decision.files.includes(f.filename) && !isSkippable(f.filename) && f.patch).slice(0, MAX_FILES);
     if (!reviewable.length) return await finishSkipped("Only generated, binary or very large files changed");
 
-    const checkRunId = await gh.createCheckRun(instId, repo.fullName, review.headSha, "REPTILE is reviewing");
+    // A retry keeps the check run its first attempt started, so none is left "in progress" on the PR.
+    const checkRunId = review.checkRunId ?? await gh.createCheckRun(instId, repo.fullName, review.headSha, "REPTILE is reviewing");
     await db.update(s.reviews).set({ checkRunId, effectiveConfig: cfg.repo }).where(eq(s.reviews.id, reviewId));
 
     // Context.

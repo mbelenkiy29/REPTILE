@@ -52,4 +52,5 @@ export async function loadPrConfig(gh: GitHost, installationId: number, repo: { 
   };
 }
 
-export const matchesAny = (patterns: string[], path: string) => patterns.some((p) => picomatch.isMatch(path, p, { dot: true }));
+// Case-insensitive like the dashboard's filters (src/lib/review/should-review.ts), so README.MD matches **/*.md everywhere.
+export const matchesAny = (patterns: string[], path: string) => patterns.some((p) => picomatch.isMatch(path, p, { dot: true, nocase: true }));
