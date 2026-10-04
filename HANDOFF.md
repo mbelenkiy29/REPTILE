@@ -1,0 +1,126 @@
+# Handoff: REPTILE (Replica pipeline)
+
+Last updated: 2026-10-04. Branch: `claude/ecstatic-mayer-xxm1ts` (the repo's default branch; there is no `main`).
+Last commit before this file: `ed9258b`.
+
+## Prompt to paste into the new session
+
+```
+Read HANDOFF.md at the repo root first; it has the full context. We're building REPTILE, a Greptile-style AI PR review
+tool, with the Replica skill pack in .claude/skills (recon → architect → design → build → backend → test → diff →
+entrepreneur → brand → launch → deploy). Everything through /replica-diff is done. Stay on branch
+claude/ecstatic-mayer-xxm1ts and push there.
+
+We stopped at /replica-entrepreneur because the old session's network policy blocked every review source. This session
+should have them allowed. First run the network check in HANDOFF.md ("Where we stopped"). If the sources are reachable,
+run /replica-entrepreneur. If they're still blocked, stop and tell me; don't fabricate any review, quote or count.
+```
+
+## Where we stopped: /replica-entrepreneur, step 1 (collect)
+
+Every review source was blocked by the environment's egress policy, from the shell, WebFetch and curl alike. WebSearch
+only returns summaries, not verbatim text. The user chose to allow these domains in the environment's network settings;
+the change needs a **new session** to apply:
+
+`hn.algolia.com`, `www.reddit.com`, `oauth.reddit.com`, `www.g2.com`, `www.trustpilot.com`, `www.greptile.com`, `itunes.apple.com`
+
+Check first:
+
+```bash
+for u in "https://hn.algolia.com/api/v1/search?query=greptile&hitsPerPage=1" "https://www.reddit.com/search.json?q=greptile&limit=1" \
+  "https://www.g2.com/products/greptile/reviews" "https://www.trustpilot.com/review/greptile.com" "https://www.greptile.com/changelog"; do
+  curl -s -o /dev/null -m 15 -w "%{http_code} $u\n" -A "Mozilla/5.0" "$u"; done
+```
+
+`000` everywhere means still blocked. Then tell the user, and offer the fallback: they paste reviews into
+`replica/reviews.csv` from their own browser.
+
+Already prepared (committed):
+- `replica/themes.json`: 20 themes. 10 are for AI code review: noise/false positives, wrong/hallucinated findings,
+  missed bugs/shallow context, slow reviews, re-reviews repeating comments, hard to configure, doesn't learn, code
+  privacy/self-host, code host support (request), review before the PR/CLI (request). The other 10 are generic, from the
+  skill.
+- `replica/reviews.csv`: header only (`source,url,date,rating,text`).
+- Run with: `python3 .claude/skills/replica-entrepreneur/reviews.py replica/reviews.csv --themes replica/themes.json --out replica/feedback.md`
+  (the skill's copy at `/root/.claude/skills/replica-entrepreneur/` works too).
+
+Rules that matter here: verbatim quotes with links only; use the official APIs (HN Algolia, Reddit API, Apple RSS) and
+read pages like a person (no scraping libraries on sites that forbid it); never invent reviews, counts or users; state the
+sample size. Aim for 100+ reviews from 3+ sources, and read Greptile's changelog so nothing it already shipped gets
+"fixed". Outputs: `replica/reviews.csv`, `replica/feedback.md`, `replica/fixes.md` (three lists, a fix plan of 5–8 items,
+three angles with one recommended), new rows in `replica/features.csv` with `original = no`. Pricing complaints go to
+/replica-launch. Next after that: `/replica-brand`.
+
+## State of the project
+
+| step | status | key files |
+| --- | --- | --- |
+| recon | done (from public search extracts; greptile.com was blocked, so there are no screenshots) | `replica/recon.md`, `replica/features.csv` |
+| architect, design | done | `replica/architecture.md`, `replica/schema.sql`, `replica/design/` |
+| build | done, two passes | `replica/build-log.md`, `replica/clone-screens/` (56 states) |
+| backend | done; **no live provider has been called**, only fakes | `replica/backend.md` |
+| test | done, two passes | `replica/test-plan.md`, `replica/bugs.md`, `web/e2e/` |
+| diff | done: **feature parity 92.9**, must 22/22, every *should* done; no layout score (no reference screenshots) | `replica/parity.md` |
+| entrepreneur | **blocked (network)**, prep committed | `replica/themes.json`, `replica/reviews.csv` |
+| brand, launch, deploy | not started | |
+
+Bugs: 17 found, 14 fixed. No open S1 or S2. Three S3s are open (BUG-002 offline save loses input, BUG-013 fix links 404
+while another org is active, BUG-014 install from GitHub's own page ends on an error), each with a `test.fail` repro.
+Top pre-launch items (in `parity.md` / `bugs.md` "To check"): a first live run with real GitHub/Claude/Voyage keys plus a
+review-quality eval on 20–50 real PRs, and checking **installation squatting** (a possible S2) with two GitHub accounts.
+
+What the second build pass added: the Free plan (one person, 50 reviews a month; `plan = free` + `billing_status = none`;
+`plan = free` + `canceled` means paused), learning suggested rules from the team's own inline review comments (migration
+0005), and S15 showing the real API instead of an unbuilt CLI.
+
+## The app
+
+- `web/`: Next.js 16 (read `web/AGENTS.md`: this Next.js differs from training data; docs are in
+  `web/node_modules/next/dist/docs/`), Postgres 16 + pgvector, Drizzle, Auth.js, pg-boss worker (`web/worker/`), Claude
+  for reviews, Voyage for embeddings, Stripe, Resend.
+- Migrations are in `web/db/migrations` (0001–0005); `npm run db:migrate` applies them.
+
+## Local setup in a fresh container
+
+`web/.env.local` is gitignored, so it isn't in the repo. Recreate it:
+
+```bash
+service postgresql start
+PW=$(openssl rand -hex 16)
+su postgres -c "psql -qc \"alter user postgres password '$PW'\""
+su postgres -c "psql -qc 'create database reptile'" ; su postgres -c "psql -qc 'create database reptile_test'"
+cat > web/.env.local <<EOF
+DATABASE_URL=postgres://postgres:$PW@localhost:5432/reptile
+TEST_DATABASE_URL=postgres://postgres:$PW@localhost:5432/reptile_test
+AUTH_SECRET=$(openssl rand -base64 32)
+APP_URL=http://localhost:3100
+AUTH_DEV_LOGIN=1
+GITHUB_FAKE=1
+REVIEW_FAKE_AI=1
+EOF
+cd web && npm ci && npx tsx --env-file=.env.local db/migrate.ts && npx tsx --env-file=.env.local db/seed.ts --reset
+```
+
+Don't switch Postgres to `trust` auth; the safety check refused it last time. Use the password as above.
+
+Checks (from `web/`, with `set -a; . ./.env.local; set +a` for vitest):
+
+```bash
+npx vitest run                     # 93 tests (unit, data layer, webhooks, worker pipeline)
+npx tsc --noEmit && npx eslint --quiet
+npx next build && SHOW_DESIGN=1 GITHUB_WEBHOOK_SECRET=e2e-webhook-secret npx next start -p 3100   # background
+npm run worker                     # background
+npm run e2e                        # 109 cases: 106 pass + 3 expected failures (open S3s)
+node scripts/screens.mjs           # 56 screen states; rewrites replica/clone-screens: revert unrelated ones before committing
+```
+
+## Gotchas from the last session
+
+- `pkill -f "next start"` kills your own shell (the pattern matches the command line). Find PIDs with
+  `ps -eo pid,args | grep -E "next-server|tsx.*worker/index.ts" | grep -v -E "grep|bash"` and `kill` them.
+- Background servers stop at their time limit; restart them when needed.
+- A `set_updated_at` trigger stamps `updated_at` on every update. To backdate rows in tests, use
+  `set local session_replication_role = replica` inside a transaction.
+- Git operations that rewrite history, and creating an orphan `main`, were refused by the safety check. Don't retry them.
+- GitHub MCP access is scoped to `mbelenkiy29/reptile` only.
+- Commit trailers in use: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and a `Claude-Session:` line.
