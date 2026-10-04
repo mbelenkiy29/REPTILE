@@ -1,0 +1,57 @@
+feature,area,priority,original,clone,notes
+Sign up with GitHub OAuth,onboarding,must,yes,no,S01; also email/Google/GitLab in original
+Connect GitHub via own GitHub App install,onboarding,must,yes,no,S02-S04; all vs selected repos
+Link installed GitHub org as a Team,onboarding,must,yes,no,S04
+Repo list with per-repo review toggle,repos,must,yes,no,S05 /review/github
+Index repository (clone + chunk + embed) with status,indexing,must,yes,no,submitted/cloning/processing/completed/failed
+Re-index incrementally on push to default branch,indexing,must,yes,no,
+Auto-review on PR opened,review,must,yes,no,F02
+Skip draft PRs by default,review,must,yes,no,
+Trigger review by commenting @mention,review,must,yes,no,F03; works on drafts and old PRs
+PR summary comment (overview + file-by-file),review,must,yes,no,S17
+Confidence score 1-5 and verdict in summary,review,must,yes,no,S17; Sep 2026 redesign
+Findings list sorted by severity linking to inline comments,review,must,yes,no,S17
+Inline comments on diff lines,review,must,yes,no,S18
+Severity badges P0/P1/P2,review,must,yes,no,S18
+GitHub suggestion blocks for fixes,review,must,yes,no,S18; one-click commit on GitHub
+Check run status on the PR,review,must,yes,no,S19
+Codebase-wide context in reviews (not just the diff),review,must,yes,no,core differentiator
+Strictness 1-3 setting,config,must,yes,no,S07
+Comment types filter (logic/syntax/style),config,must,yes,no,S07
+Ignore patterns (gitignore syntax),config,must,yes,no,S07
+greptile.json-style repo config file overriding dashboard,config,must,yes,no,our own filename e.g. reptile.json
+Plain-English custom rules scoped by repo and path,rules,must,yes,no,S08
+Update summary on re-review; carry unresolved findings,review,should,yes,no,
+Reply to a comment with @mention and get a threaded answer,review,should,yes,no,F03
+Trigger filters: labels / disabled labels,config,should,yes,no,
+Trigger filters: include/exclude authors (globs),config,should,yes,no,
+Trigger filters: base branches (globs),config,should,yes,no,
+Per-directory config folder (.greptile/ equivalent),config,should,yes,no,precedence path > repo > org
+Copy/download dashboard settings as JSON,config,should,yes,no,S07
+Config validator,config,should,yes,no,S16
+Read CLAUDE.md / AGENTS.md / .cursorrules as rules,rules,should,yes,no,
+Learn from thumbs up/down reactions,learning,should,yes,no,F05
+Infer rules from human review comments,learning,should,yes,no,F05; show as suggested rules
+Sequence diagram (mermaid) in summary,review,should,yes,no,
+"What we checked" section when no issues,review,should,yes,no,
+Analytics: PRs reviewed / addressed rate / bugs caught / merge time / reaction ratio,analytics,should,yes,no,S10
+Members and Admin/Member roles,team,should,yes,no,S12
+Billing: per-seat plan + included reviews + metered overage (Stripe),billing,should,yes,no,S13; $30/seat incl 50 reviews in original
+Free tier and 14-day trial,billing,should,yes,no,S13
+Review history list,repos,should,yes,no,S11
+Fix with your Agent deep link per comment + Fix All,review,could,yes,no,F04
+Auto-generated per-repo knowledge base (editable),knowledge,could,yes,no,S09
+Related repos as extra context,rules,could,yes,no,
+Security scanning (static rules + dependency CVEs + AI),security,could,yes,no,Jul 2026 security agent
+Analytics filters and CSV export,analytics,could,yes,no,S10
+GitLab merge request support,integrations,could,yes,no,
+GitHub Enterprise Server support,integrations,could,yes,no,
+Jira/Linear ticket context in reviews,integrations,could,yes,no,S14
+Slack Q&A over codebase,integrations,could,yes,no,S14
+CLI local review (review -b / --resume),cli,could,yes,no,F10
+Public API + API keys + MCP server,api,could,yes,no,S15; POST /repositories /query
+Their review models prompts and eval data,review,skip,yes,skip,proprietary; build our own pipeline on a public LLM API
+GitHub's App install and OAuth consent pages,onboarding,skip,yes,skip,owned by GitHub; we register our own app
+Customer logos benchmarks mascot and T-Rex tier name,brand,skip,yes,skip,their brand and claims
+SOC 2 / air-gapped self-host Helm distribution,enterprise,skip,yes,skip,certification and ops not features; revisit later
+AWS Marketplace listing and partner deals,distribution,skip,yes,skip,partner deals
