@@ -24,7 +24,8 @@ The sidebar's **Dev data** panel makes the data layer slow or failing, and reloa
 ```bash
 npm run lint && npm run typecheck
 npm run test:db              # unit + database + worker tests (needs a Postgres whose name contains "test")
-npm run build && SHOW_DESIGN=1 npx next start -p 3100   # with APP_URL=http://localhost:3100 and the dev flags
+npm run build && SHOW_DESIGN=1 GITHUB_WEBHOOK_SECRET=e2e-webhook-secret npx next start -p 3100   # with APP_URL=http://localhost:3100 and the dev flags
+npm run e2e                  # Playwright: every flow in ../replica/test-plan.md (reseeds DATABASE_URL; run `npm run worker` too)
 node scripts/screens.mjs     # every screen at 1440 and 390 px, axe, console, overflow → ../replica/clone-screens
 node scripts/slice.mjs       # core loop in the UI
 node scripts/config-flow.mjs # settings, validator, rules, repo overrides
