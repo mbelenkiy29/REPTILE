@@ -399,6 +399,15 @@ async function findingsWhere(where: ReturnType<typeof and>) {
   return rows.map(({ f, up, down }) => toFinding(f, Number(up ?? 0), Number(down ?? 0)));
 }
 
+/** The newest completed review of a pull request in this org (for "Fix all" links), or null. */
+export async function latestCompletedReviewId(ctx: Ctx, pullRequestId: string): Promise<string | null> {
+  if (!isUuid(pullRequestId)) return null;
+  const [r] = await db.select({ id: s.reviews.id }).from(s.reviews)
+    .where(and(eq(s.reviews.orgId, ctx.orgId), eq(s.reviews.pullRequestId, pullRequestId), eq(s.reviews.status, "completed")))
+    .orderBy(desc(s.reviews.queuedAt), desc(s.reviews.id)).limit(1);
+  return r?.id ?? null;
+}
+
 export async function getReview(ctx: Ctx, id: string): Promise<ReviewRow & { findings: Finding[]; rules: Rule[] }> {
   await simulate();
   if (!isUuid(id)) throw new NotFoundError("That review");
