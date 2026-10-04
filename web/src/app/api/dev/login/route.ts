@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { devLoginEnabled } from "@/auth";
 import { db, schema as s } from "@/db";
 import { safeRedirectPath } from "@/lib/safe-next";
+import { ORG_COOKIE } from "@/lib/data/session";
 
 // Local/CI sign-in as a seeded user (AUTH_DEV_LOGIN=1 and APP_URL on localhost only). 404 everywhere else.
 export async function GET(req: Request) {
@@ -17,6 +18,6 @@ export async function GET(req: Request) {
   await db.insert(s.sessions).values({ sessionToken: token, userId: user.id, expires: new Date(Date.now() + 86400_000) });
   const res = NextResponse.redirect(new URL(safeRedirectPath(next), url));
   res.cookies.set("authjs.session-token", token, { httpOnly: true, sameSite: "lax", path: "/" });
-  if (url.searchParams.get("org")) res.cookies.set("rp_org", url.searchParams.get("org")!, { httpOnly: true, sameSite: "lax", path: "/" });
+  if (url.searchParams.get("org")) res.cookies.set(ORG_COOKIE, url.searchParams.get("org")!, { httpOnly: true, sameSite: "lax", path: "/" });
   return res;
 }

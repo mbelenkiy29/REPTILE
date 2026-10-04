@@ -49,7 +49,7 @@ for (const s of SCREENS.filter((x) => !only.size || [...only].some((o) => x.id.s
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, reducedMotion: "reduce" });
     const page = await ctx.newPage();
     if (s.auth !== false) await devLogin(page, base, { org: s.org ?? "o_acme" });
-    if (s.sim) await ctx.addCookies([{ name: "rp_sim", value: s.sim, url: base }]);
+    if (s.sim) await ctx.addCookies([{ name: "cs_sim", value: s.sim, url: base }]);
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (m) => {

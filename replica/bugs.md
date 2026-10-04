@@ -250,7 +250,8 @@ Status: open
 
 Ranked. These came from a code read; none was confirmed in this environment.
 
-1. **Installation squatting (likely S2, check before launch).** `linkInstallation` accepts any installation that the user's
+1. **Fixed in code in /replica-deploy (2026-10-04), confirm with two real accounts:** only an active org owner, or the
+   personal account itself, can link an installation (`canAdminister`; test in `github.test.ts`). Was: **Installation squatting (likely S2, check before launch).** `linkInstallation` accepts any installation that the user's
    `GET /user/installations` returns. GitHub returns installations where the user has *any* explicit access, read included.
    A read-only collaborator on one repo of org X could link X's installation to their own REPTILE org first: the real owner
    gets "already linked", and repos added later land in the squatter's org. The fake GitHub can't show what the real API

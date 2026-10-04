@@ -2,21 +2,22 @@
 
 Date: 2026-10-04 · Commit: see `git log` (the commit that adds this file) · **Go from user: not yet**
 
-**Status: not live, and not ready to go live.** Preflight has 4 failures (below). Nothing has been deployed, bought or
+**Status: not live.** The four code-side failures are fixed (second pass, below). What's left is yours: the lawyer's
+review of the legal pages, the two-account check, accounts and keys, and your go. Nothing has been deployed, bought or
 signed up for. The user does every account step; this file gives the exact names, records and commands.
 
 ## Preflight
 
 | check | result | evidence |
 | --- | --- | --- |
-| e2e suite green | ✅ **113 / 113** passed (3 of them are `test.fail` repros of the open S3s) | `npx playwright test`, against a production build on a fresh seed |
-| unit, data and pipeline tests | ✅ 98 / 98 | `npx vitest run` |
-| no open S1 or S2 bugs | ⚠️ none open, but **one possible S2 is unverified** | `bugs.md`: 6 S1/S2 found, all fixed; 3 S3 open (BUG-002, BUG-013, BUG-014) |
+| e2e suite green | ✅ **115 / 115** passed (3 of them are `test.fail` repros of the open S3s) | `npx playwright test`, against a production build on a fresh seed |
+| unit, data and pipeline tests | ✅ 101 / 101 | `npx vitest run` |
+| no open S1 or S2 bugs | ✅ none open; the possible S2 (installation squatting) is **fixed in code**, still to confirm with two real GitHub accounts | `bugs.md`: 6 S1/S2 found, all fixed; 3 S3 open (BUG-002, BUG-013, BUG-014) |
 | parity: all must-haves done | ✅ 22 / 22, feature score 92.9 | `parity.py replica/features.csv` |
-| rebrand sweep clean | ❌ **exit 1 for the whole repo**; `web/` and `.claude/` are clean | 19 hits, all in `HANDOFF.md` (a planning note that names Greptile) |
+| rebrand sweep clean | ✅ **exit 0 for the whole repo** (second pass) | the handoff note moved to `replica/HANDOFF.md`; the root `HANDOFF.md` is a pointer that names neither app |
 | store listing passes | ✅ 0 errors, 0 warnings (not shipping to stores: web app only) | `listing.py replica/launch/listing.json` |
 | production build passes | ✅ | `npm run build` |
-| privacy policy and terms live, every processor listed | ❌ **missing**: no pages exist | see "Processors" below for what they must list |
+| privacy policy and terms live, every processor listed | ⚠️ **live as drafts** at `/privacy` and `/terms`, every processor listed (e2e `D-2`), linked from the landing footer and sign-in; a visible "Draft for legal review" notice stays until a lawyer reviews them | fill `LEGAL` and set `LEGAL_REVIEWED = true` in `web/src/components/legal-page.tsx` |
 | account deletion works | ✅ e2e `cross-cutting` covers it; **fixed today**: a failed Stripe cancel now stops the deletion, and orgs that keep members get their seat count lowered (were `bugs.md` "To check" #2) | `billing.test.ts` (2 new tests) |
 | cookie banner (EU/UK) | ✅ not needed today: only the sign-in session cookie and the theme in localStorage | keep it that way: pick cookieless analytics |
 | favicon, titles, OG image, emails yours | ✅ favicon `icon.svg`, titles "… · Countersign", emails in the new voice; **OG image added today** (1200×630, `src/app/opengraph-image.png`, public for link previews) | e2e `L-6`; screenshots checked by eye |
@@ -26,22 +27,31 @@ Also from `launch/launch-plan.md` §0. They aren't in the skill's list, but they
 
 | gate | result |
 | --- | --- |
-| error tracking | ❌ not installed |
+| error tracking | ✅ wired (Sentry, web + browser + worker); **off until you set `SENTRY_DSN`** |
 | product analytics | ❌ not installed |
 | margin check (live review cost vs. $0.48 a review) | ❌ no live review has run yet |
 | name checks (trademark, domain, handles) | ❌ to run (`brand.md`) |
-| installation squatting checked with two GitHub accounts | ❌ unverified, possible S2 (`bugs.md` "To check" #1) |
+| installation squatting checked with two GitHub accounts | ⚠️ fixed in code (owners only), confirm with two accounts |
+| stored GitHub sign-in tokens encrypted | ❌ **found in the second pass**: `accounts.access_token` and `refresh_token` are stored in plain text (the architecture planned AES-GCM; never built). The privacy policy doesn't claim otherwise. Fix before launch |
 
-### The 4 skill failures, and what clears each
+### Second pass: the four code-side items (2026-10-04)
 
-1. **Sweep exit 1:** only `HANDOFF.md`. The shipped app (`web/`) is clean. Clearing it means either moving the
-   handoff note into `replica/` (where the original's name belongs; the sweep skips that folder) with a one-line pointer
-   left at the root, or rewording it. **Your call:** the note is part of how you resume sessions.
-2. **Privacy policy and terms:** someone has to write them, ideally a lawyer. They must list every processor below and
-   match the landing page's "Where does our code go?" answer.
-3. **Possible S2, installation squatting:** check it with two GitHub accounts once the production GitHub App exists,
-   or apply the likely fix first (require org admin to link an installation; see `bugs.md`).
-4. **Error tracking** (counted under "Watch", but there's nothing to watch the launch with without it).
+1. **Sweep:** `HANDOFF.md` moved to `replica/HANDOFF.md`; a pointer stays at the root. Whole-repo sweep: exit 0.
+2. **Privacy policy and terms:** `/privacy` and `/terms`, written from what the code does (data stored, retention from
+   the cleanup job, cookies, processors, pricing and cancelling from the billing code). Placeholders: company name,
+   address, contact, governing law, date (`LEGAL` in `web/src/components/legal-page.tsx`). Public in the auth proxy.
+   While writing them, two things turned up: the org cookie was still named `rp_org` (now `cs_org`), and stored GitHub
+   tokens aren't encrypted (row above).
+3. **Installation squatting:** an installation can only be linked by an active owner (admin) of the GitHub
+   organization, or by the personal account itself (`canAdminister`, checked against the user's own GitHub token).
+   Others still see it, greyed out, with who has to link it. Unit test in `github.test.ts`. **The production GitHub
+   App needs the organization permission "Members: read"** for the owner check; without it, nobody can link an org.
+4. **Error tracking:** `@sentry/nextjs` (server errors through `onRequestError`, browser errors) and `@sentry/node` in
+   the worker (job errors, dead-lettered jobs, failed reviews with the review id). No personal data, no tracing. Off
+   unless `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` are set: the browser SDK is a lazy chunk that isn't loaded without a
+   DSN (checked: 12 scripts on the landing page, none of them Sentry). Started both processes with a dummy DSN: both
+   run. Source maps aren't uploaded (stack traces from the browser are minified); add `withSentryConfig` and a Sentry
+   auth token later if you want them.
 
 ### Processors (for the privacy policy)
 
@@ -56,7 +66,8 @@ Also from `launch/launch-plan.md` §0. They aren't in the skill's list, but they
 | Stripe | billing contact and card details (Stripe holds the card, we don't) | payments |
 | Resend | email addresses and email content | sign-in links, invites, billing emails |
 | Google (optional) | identity, if Google sign-in is enabled | sign-in |
-| your error tracking and analytics vendors | errors and usage events | when added |
+| Sentry | error reports (no request bodies, cookies or IPs) | error tracking |
+| your analytics vendor | usage events | when added |
 
 ## Changes made in this step (all tested)
 
@@ -101,6 +112,8 @@ Names match `web/.env.example`. Set live values only here, in the hosts' secret 
 | `ANTHROPIC_API_KEY`, `REVIEW_MODEL`, `VOYAGE_API_KEY`, `EMBED_MODEL` | not needed | ✅ |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SEAT`, `STRIPE_PRICE_SEAT_ANNUAL` | ✅ (live) | not needed |
 | `PRICE_SEAT_CENTS`, `PRICE_SEAT_ANNUAL_CENTS` | `2400`, `2000` | not needed |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | ✅ | ✅ |
+| `NEXT_PUBLIC_SENTRY_DSN` | ✅ (needed at build time) | not needed |
 | **never in production:** `AUTH_DEV_LOGIN`, `GITHUB_FAKE`, `REVIEW_FAKE_AI`, `SHOW_DESIGN`, `TEST_DATABASE_URL` | ❌ | ❌ |
 
 Fly: `fly secrets set NAME=value …` (values never in `fly.toml`). Vercel: Project → Settings → Environment Variables,
@@ -114,8 +127,9 @@ scope **Production**.
       `https://<your-domain>/api/github/setup` (tick "Redirect on update"); Webhook
       `https://<your-domain>/api/webhooks/github` with a new random secret.
 - [ ] Permissions exactly as in `backend.md` step 3 (Contents read; Pull requests, Checks, Issues read and write;
-      Metadata read; account Email addresses read). Events as listed there.
-- [ ] Public (installable by anyone) only after the installation-squatting check.
+      Metadata read; **organization Members read**, for the owner check; account Email addresses read). Events as listed there.
+- [ ] Public (installable by anyone) only after confirming the owner check with two accounts: a read-only collaborator
+      sees the org's installation greyed out and can't link it; an owner can.
 
 ### 4. Stripe (live)
 
@@ -155,7 +169,7 @@ Records set: none yet.
 
 ## Watch
 
-- [ ] **Error tracking** in both processes (Sentry has Next.js and Node SDKs). Alert on new issues, on reviews that end
+- [ ] **Error tracking:** create a Sentry project and set the DSN variables above (the code is wired). Alert on new issues, on reviews that end
       `failed`, and on rows in `job_failures` (dead-lettered jobs).
 - [ ] **Uptime:** `https://<your-domain>/` and `https://<your-domain>/api/health` every minute, alert by email and phone.
       For the worker, alert if the oldest queued `review-pr` job is over 10 minutes old.

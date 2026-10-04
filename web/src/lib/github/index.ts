@@ -48,9 +48,9 @@ async function devFake(): Promise<GitHost> {
   }
   const f = new DevFake();
   f.installations = [
-    { externalInstallationId: 61000001, accountLogin: "jordanlee", accountType: "User", repositorySelection: "selected",
+    { externalInstallationId: 61000001, accountLogin: "jordanlee", accountType: "User", repositorySelection: "selected", canAdminister: true,
       repositories: [{ providerRepoId: 9001, fullName: "jordanlee/dotfiles", defaultBranch: "main", private: false }] },
-    { externalInstallationId: 61000002, accountLogin: "acme-labs", accountType: "Organization", repositorySelection: "selected",
+    { externalInstallationId: 61000002, accountLogin: "acme-labs", accountType: "Organization", repositorySelection: "selected", canAdminister: true,
       repositories: ["prototype", "ml-pipeline", "design-tokens"].map((n, i) => ({ providerRepoId: 9100 + i, fullName: `acme-labs/${n}`, defaultBranch: "main", private: true })) },
   ];
   return f;

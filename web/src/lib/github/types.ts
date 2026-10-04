@@ -6,6 +6,12 @@ export interface UserInstallation {
   accountLogin: string;
   accountType: "User" | "Organization";
   repositorySelection: "all" | "selected";
+  /**
+   * Whether the signed-in user may link it: an active admin (owner) of the organization, or the personal account itself.
+   * GitHub lists installations the user can merely read, too; linking those would let a collaborator claim an org's
+   * installation for their own Countersign org (installation squatting).
+   */
+  canAdminister: boolean;
   repositories: { providerRepoId: number; fullName: string; defaultBranch: string; private: boolean }[];
 }
 

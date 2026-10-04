@@ -7,6 +7,7 @@ import picomatch from "picomatch";
 import { db, schema as s, sql } from "@/db";
 import { ALLOWANCE_WARNING, allowance, FREE_PLAN, onFreePlan, periodStart, recordUsage } from "@/lib/billing";
 import { enqueue } from "@/lib/jobs";
+import { reportError } from "@/lib/observability";
 import { toFinding } from "@/lib/data";
 import { gitHost, type GitHost, type PrFile, type ReviewCommentInput } from "@/lib/github";
 import { checkRunTitle, fingerprint, renderInlineComment, renderSummary, SUMMARY_MARKER } from "@/lib/review/markdown";
@@ -217,6 +218,7 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
     const [r] = await db.select({ checkRunId: s.reviews.checkRunId }).from(s.reviews).where(eq(s.reviews.id, reviewId));
     if (r?.checkRunId) await gh.completeCheckRun(instId, repo.fullName, r.checkRunId, { conclusion: "neutral", title: "Countersign · review failed", summary: message }).catch(() => undefined);
     console.error(`[review-pr] ${reviewId} failed:`, e instanceof Error ? e.message : e);
+    reportError(e, { job: "review-pr", review: reviewId, refused: String(e instanceof RefusedError) });
     return { result: "failed" };
   }
 }

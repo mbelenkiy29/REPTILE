@@ -26,6 +26,8 @@
     "@octokit/rest": "^22.0.1",
     "@octokit/webhooks": "^14.2.0",
     "@octokit/webhooks-methods": "^6.0.0",
+    "@sentry/nextjs": "^11.4.0",
+    "@sentry/node": "^11.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",

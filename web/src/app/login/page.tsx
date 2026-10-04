@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { safeRedirectPath } from "@/lib/safe-next";
 import { Mail } from "lucide-react";
@@ -87,6 +88,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               )}
               <p className="text-sm text-muted">
                 Signing in with GitHub doesn&apos;t give Countersign access to any code. You choose repositories in the next step.
+              </p>
+              <p className="text-sm text-muted">
+                By continuing you agree to the <Link className="underline underline-offset-2 hover:text-fg" href="/terms">terms</Link> and
+                the <Link className="underline underline-offset-2 hover:text-fg" href="/privacy">privacy policy</Link>.
               </p>
             </>
           )}

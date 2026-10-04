@@ -36,15 +36,29 @@ export const octokitHost: GitHost = {
     const user = new Octokit({ auth: userToken });
     const appId = Number(env("GITHUB_APP_ID"));
     const installs = await user.paginate(user.apps.listInstallationsForAuthenticatedUser, { per_page: 100 });
+    const me = (await user.users.getAuthenticated()).data.login.toLowerCase();
+    // Organization admin check. Needs the app's "Members: read" organization permission; anything but an active admin
+    // membership (including a 403 or 404) counts as "can't administer".
+    const isOrgAdmin = async (org: string) => {
+      try {
+        const { data } = await user.orgs.getMembershipForAuthenticatedUser({ org });
+        return data.state === "active" && data.role === "admin";
+      } catch {
+        return false;
+      }
+    };
     const out: UserInstallation[] = [];
     for (const i of installs) {
       if (i.app_id !== appId || !i.account) continue;
       const repos = await user.paginate(user.apps.listInstallationReposForAuthenticatedUser, { installation_id: i.id, per_page: 100 });
       const account = i.account as { login?: string; slug?: string; type?: string };
+      const login = account.login ?? account.slug ?? "unknown";
+      const org = account.type === "Organization";
       out.push({
         externalInstallationId: i.id,
-        accountLogin: account.login ?? account.slug ?? "unknown",
-        accountType: account.type === "Organization" ? "Organization" : "User",
+        accountLogin: login,
+        accountType: org ? "Organization" : "User",
+        canAdminister: org ? await isOrgAdmin(login) : login.toLowerCase() === me,
         repositorySelection: i.repository_selection === "all" ? "all" : "selected",
         repositories: repos.map((r) => ({ providerRepoId: r.id, fullName: r.full_name, defaultBranch: r.default_branch ?? "main", private: r.private })),
       });

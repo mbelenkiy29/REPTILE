@@ -29,7 +29,8 @@ Claude never creates these or handles live keys. Put values in `web/.env.local` 
      (tick "Redirect on update"). Webhook URL: `<APP_URL>/api/webhooks/github`, with a random webhook secret.
    - Tick "Request user authorization (OAuth) during installation" off (sign-in is separate); "Expire user authorization tokens" on.
    - **Repository permissions (fewest needed):** Contents: read · Pull requests: read & write · Checks: read & write ·
-     Issues: read & write (summary comment) · Metadata: read. **Account permissions:** Email addresses: read.
+     Issues: read & write (summary comment) · Metadata: read. **Organization permissions:** Members: read (only org owners may
+     link an installation; added in /replica-deploy). **Account permissions:** Email addresses: read.
    - **Events:** Installation, Installation repositories, Pull request, Pull request review comment, Pull request review thread,
      Issue comment, Push, Check run, Repository.
    - Copy the App ID, slug, client id/secret, and generate a private key → `GITHUB_APP_*`.

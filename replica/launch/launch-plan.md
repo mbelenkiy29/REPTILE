@@ -7,9 +7,9 @@ surprise you.** Every channel below leads with that, and with the fix behind it:
 
 None of these exist yet, and each one blocks launch. `/replica-deploy` checks the first two.
 
-- [ ] **Privacy policy and terms** pages, linked from the landing page footer and the sign-in page. The landing FAQ's
+- [~] **Privacy policy and terms** pages (drafts live at `/privacy` and `/terms`; lawyer review pending), linked from the landing page footer and the sign-in page. The landing FAQ's
       "Where does our code go?" answer must match the privacy policy. Get a lawyer to read both.
-- [ ] **Error tracking** live in the web app and the worker (Sentry or similar), with an alert on failed reviews and
+- [~] **Error tracking** (Sentry wired; set the DSN) live in the web app and the worker (Sentry or similar), with an alert on failed reviews and
       dead-letter jobs (`job_failures`).
 - [ ] **Product analytics** on the funnel, cookie-light and disclosed in the privacy policy: landing → sign-in →
       GitHub App installed → first review posted → Team checkout.
@@ -20,7 +20,8 @@ None of these exist yet, and each one blocks launch. `/replica-deploy` checks th
 - [ ] **Stripe** set up as in `pricing.md`: two seat prices, the Customer Portal with cancel and card removal, renewal
       emails, the webhook.
 - [ ] **Support address** on the landing page and in every email (a shared inbox is enough).
-- [ ] **Installation squatting** checked with two GitHub accounts (a possible S2 in `bugs.md`).
+- [~] **Installation squatting** fixed in code (owners only); still check with two GitHub accounts (a possible S2 in `bugs.md`).
+- [ ] **Encrypt stored GitHub tokens** (`accounts.access_token`, `refresh_token`; found in /replica-deploy).
 
 ## 1. Beta (2 to 3 weeks before launch)
 

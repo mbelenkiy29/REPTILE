@@ -63,6 +63,8 @@ export interface PendingInstallation {
   externalInstallationId: number;
   accountLogin: string;
   accountType: "User" | "Organization";
+  /** False when the user can see it on GitHub but isn't an owner of that account: shown, but can't be linked. */
+  canAdminister: boolean;
   repositories: string[];
 }
 
@@ -76,18 +78,27 @@ export async function listPendingInstallations(ctx: Ctx): Promise<PendingInstall
     (await db.select({ id: s.installations.externalInstallationId }).from(s.installations)
       .where(inArray(s.installations.externalInstallationId, visible.map((v) => v.externalInstallationId)))).map((r) => r.id),
   );
-  return visible.filter((v) => !linked.has(v.externalInstallationId)).map(({ externalInstallationId, accountLogin, accountType, repositories }) => ({
-    externalInstallationId, accountLogin, accountType, repositories: repositories.map((r) => r.fullName),
+  return visible.filter((v) => !linked.has(v.externalInstallationId)).map(({ externalInstallationId, accountLogin, accountType, canAdminister, repositories }) => ({
+    externalInstallationId, accountLogin, accountType, canAdminister, repositories: repositories.map((r) => r.fullName),
   }));
 }
 
-/** Links an installation the user can see (checked against their GitHub token) and starts indexing its repos. */
+/**
+ * Links an installation the user owns on GitHub (checked against their own GitHub token: an active org admin, or the
+ * personal account itself) and starts indexing its repos. Seeing an installation isn't enough: read access would let a
+ * collaborator claim an org's installation for their own Countersign org.
+ */
 export async function linkInstallation(ctx: Ctx, externalInstallationId: number) {
   await simulate();
   assertAdmin(ctx);
   const { listUserInstallations } = await import("@/lib/github");
   const inst = (await listUserInstallations(ctx.userId)).find((i) => i.externalInstallationId === externalInstallationId);
   if (!inst) throw new NotFoundError("That installation");
+  if (!inst.canAdminister) {
+    throw new Error(inst.accountType === "Organization"
+      ? `Only an owner of ${inst.accountLogin} on GitHub can link it. Ask an owner to sign in to Countersign and link it.`
+      : `Only ${inst.accountLogin} can link their own account.`);
+  }
   const repoIds = await db.transaction(async (tx) => {
     const existing = await tx.select({ orgId: s.installations.orgId }).from(s.installations)
       .where(and(eq(s.installations.provider, "github"), eq(s.installations.externalInstallationId, externalInstallationId)));

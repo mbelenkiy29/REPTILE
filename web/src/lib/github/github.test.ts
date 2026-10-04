@@ -154,7 +154,7 @@ describe.skipIf(!url)("GitHub App", async () => {
       expect(verifyState(signState({ orgId: "o", userId: "u" }, -1))).toBeNull();
     });
     it("links an installation the user can see, once", async () => {
-      gh.installations = [{ externalInstallationId: 777, accountLogin: "side-co", accountType: "Organization", repositorySelection: "selected",
+      gh.installations = [{ externalInstallationId: 777, accountLogin: "side-co", accountType: "Organization", repositorySelection: "selected", canAdminister: true,
         repositories: [{ providerRepoId: 8801, fullName: "side-co/app", defaultBranch: "main", private: true }] }];
       const ctx = { userId: seedId("u_jordan"), orgId: seedId("o_side"), role: "admin" as const };
       expect(await data.listPendingInstallations(ctx)).toHaveLength(1);
@@ -163,6 +163,17 @@ describe.skipIf(!url)("GitHub App", async () => {
       expect(await data.listPendingInstallations(ctx)).toEqual([]);
       await expect(data.linkInstallation(ctx, 777)).rejects.toThrow();
       await expect(data.linkInstallation(ctx, 888)).rejects.toBeInstanceOf(data.NotFoundError);
+    });
+    it("installation squatting: an installation the user can only see, not administer, is listed but can't be linked", async () => {
+      gh.installations = [{ externalInstallationId: 779, accountLogin: "big-org", accountType: "Organization", repositorySelection: "all", canAdminister: false,
+        repositories: [{ providerRepoId: 8803, fullName: "big-org/core", defaultBranch: "main", private: true }] }];
+      const ctx = { userId: seedId("u_jordan"), orgId: seedId("o_side"), role: "admin" as const };
+      expect(await data.listPendingInstallations(ctx)).toMatchObject([{ externalInstallationId: 779, canAdminister: false }]);
+      const before = jobs.length;
+      await expect(data.linkInstallation(ctx, 779)).rejects.toThrow(/Only an owner of big-org/);
+      const rows = await db.select().from(s.installations).where(eq(s.installations.externalInstallationId, 779));
+      expect(rows).toHaveLength(0);
+      expect(jobs).toHaveLength(before); // nothing queued for indexing
     });
   });
 

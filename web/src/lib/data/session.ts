@@ -6,8 +6,8 @@ import { auth } from "@/auth";
 import { db, schema as s } from "@/db";
 import type { Ctx, Organization, Role, User } from "./types";
 
-export const ORG_COOKIE = "rp_org";
-export const SIM_COOKIE = "rp_sim";
+export const ORG_COOKIE = "cs_org";
+export const SIM_COOKIE = "cs_sim";
 
 export async function getSessionUser(): Promise<User | null> {
   const session = await auth();

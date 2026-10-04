@@ -5,6 +5,7 @@ import { Check, GitPullRequest, MessageSquareText, PlugZap } from "lucide-react"
 import { FREE_PLAN, PRICING } from "@/lib/billing";
 import { getSessionUser } from "@/lib/data/session";
 import { formatMoney } from "@/lib/format";
+import { LegalFooter } from "@/components/legal-page";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -193,9 +194,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-8 text-sm text-muted md:px-6">
-        <span>© {new Date().getFullYear()} Countersign</span>
-      </footer>
+      <LegalFooter />
     </div>
   );
 }

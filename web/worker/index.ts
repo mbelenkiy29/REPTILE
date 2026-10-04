@@ -1,6 +1,8 @@
 // The Countersign worker: one long-running process (Fly.io). Processes the pg-boss queues and runs the schedules.
 // Usage: npx tsx worker/index.ts   (needs DATABASE_URL and the provider keys in the environment)
+import * as Sentry from "@sentry/node";
 import { db, schema as s } from "@/db";
+import { errorTrackingEnabled, reportError, sentryOptions } from "@/lib/observability";
 import { DEAD_LETTER, getBoss, QUEUES, type JobData, type QueueName } from "@/lib/jobs";
 import { runReview } from "./jobs/review-pr";
 import { indexRepo } from "./jobs/index-repo";
@@ -30,13 +32,20 @@ const SCHEDULES: [QueueName, string][] = [
 const CONCURRENCY: Partial<Record<QueueName, number>> = { "review-pr": 4, "index-repo": 2, "send-email": 4 };
 
 async function main() {
+  if (errorTrackingEnabled()) Sentry.init(sentryOptions());
   const boss = await getBoss({ worker: true });
   for (const [name, handler] of Object.entries(HANDLERS) as [QueueName, Handler<QueueName>][]) {
     const n = CONCURRENCY[name] ?? 1;
     for (let i = 0; i < n; i++) {
       await boss.work(name, { batchSize: 1 }, async ([job]) => {
         const started = Date.now();
-        const result = await handler(job.data as never, { id: job.id, retryCount: (job as { retryCount?: number }).retryCount ?? 0 });
+        let result: unknown;
+        try {
+          result = await handler(job.data as never, { id: job.id, retryCount: (job as { retryCount?: number }).retryCount ?? 0 });
+        } catch (e) {
+          reportError(e, { queue: name, job: job.id });
+          throw e;
+        }
         console.log(`[worker] ${name} ${job.id} ${Date.now() - started}ms ${JSON.stringify(result ?? {})}`);
         return result;
       });
@@ -47,6 +56,7 @@ async function main() {
     const j = job as { id: string; name: string; data: Record<string, unknown>; output?: unknown };
     await db.insert(s.jobFailures).values({ queue: String(j.data?.__queue ?? j.name), jobId: j.id, data: j.data ?? {}, error: JSON.stringify(j.output ?? "failed").slice(0, 4000) }).onConflictDoNothing();
     console.error(`[worker] dead letter ${j.id}`);
+    reportError(new Error(`Job ran out of retries: ${String(j.data?.__queue ?? j.name)}`), { queue: String(j.data?.__queue ?? j.name), job: j.id, deadLetter: "true" });
   });
   for (const [name, cron] of SCHEDULES) await boss.schedule(name, cron, {}, { tz: "UTC" });
   // Retired with flat pricing (nothing is metered): drop its schedule from databases that still have it.
@@ -55,6 +65,7 @@ async function main() {
   const stop = async () => {
     console.log("[worker] stopping");
     await boss.stop({ graceful: true, timeout: 60_000 });
+    if (errorTrackingEnabled()) await Sentry.flush(5_000);
     process.exit(0);
   };
   process.on("SIGTERM", stop);
