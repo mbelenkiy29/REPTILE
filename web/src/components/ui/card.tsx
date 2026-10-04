@@ -39,6 +39,7 @@ export function StatTile({
   value,
   delta,
   goodWhen = "up",
+  deltaUnit = "%",
   loading,
 }: {
   label: string;
@@ -46,6 +47,8 @@ export function StatTile({
   /** Percent change vs. the previous period. */
   delta?: number;
   goodWhen?: "up" | "down";
+  /** "%" for relative change, " pts" for a change in a percentage. */
+  deltaUnit?: "%" | " pts";
   loading?: boolean;
 }) {
   const good = delta !== undefined && (goodWhen === "up" ? delta >= 0 : delta <= 0);
@@ -60,7 +63,8 @@ export function StatTile({
       {!loading && delta !== undefined && (
         <span className={cn("text-sm tabular-nums", good ? "text-success" : "text-danger")}>
           {delta >= 0 ? "↑ +" : "↓ −"}
-          {Math.abs(delta)}% <span className="text-muted">vs. last period</span>
+          {Math.abs(delta)}
+          {deltaUnit} <span className="text-muted">vs. previous period</span>
         </span>
       )}
     </div>

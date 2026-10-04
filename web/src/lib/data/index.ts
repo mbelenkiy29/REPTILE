@@ -348,7 +348,7 @@ export interface Analytics {
     thumbsUp: number; thumbsDown: number;
   };
   daily: { date: string; reviews: number; P0: number; P1: number; P2: number }[];
-  byRepo: { repo: string; reviews: number; findings: number; addressed: number }[];
+  byRepo: { repo: string; reviews: number; findings: number; closed: number; addressed: number }[];
 }
 
 export async function getAnalytics(ctx: Ctx, f: { days: number; repoId?: string; author?: string }): Promise<Analytics> {
@@ -388,14 +388,15 @@ export async function getAnalytics(ctx: Ctx, f: { days: number; repoId?: string;
     daily.push({ date: day, reviews: rs.length, P0: fs.filter((x) => x.severity === "P0").length, P1: fs.filter((x) => x.severity === "P1").length, P2: fs.filter((x) => x.severity === "P2").length });
   }
 
-  const byRepo = new Map<string, { repo: string; reviews: number; findings: number; addressed: number }>();
+  const byRepo = new Map<string, Analytics["byRepo"][number]>();
   for (const r of cur.reviews) {
     const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
     const name = s.repos.find((x) => x.id === pr.repoId)!.fullName;
-    const row = byRepo.get(name) ?? { repo: name, reviews: 0, findings: 0, addressed: 0 };
+    const row = byRepo.get(name) ?? { repo: name, reviews: 0, findings: 0, closed: 0, addressed: 0 };
     const fs = cur.fs.filter((x) => x.firstReviewId === r.id);
     row.reviews += 1;
     row.findings += fs.length;
+    row.closed += fs.filter((x) => x.status !== "open").length;
     row.addressed += fs.filter((x) => x.status === "addressed" || x.status === "resolved").length;
     byRepo.set(name, row);
   }
@@ -495,6 +496,8 @@ export interface Billing {
   plan: "free" | "trial" | "pro" | "enterprise";
   billingStatus: "none" | "active" | "past_due" | "canceled";
   trialEndsAt: string | null;
+  /** Whole days left in the trial, 0 when it has ended; null when not on a trial. */
+  trialDaysLeft: number | null;
   seats: number;
   includedReviews: number;
   usedReviews: number;
@@ -516,7 +519,9 @@ export async function getBilling(ctx: Ctx): Promise<Billing> {
   const used = s.usage.filter((u) => u.orgId === ctx.orgId && u.periodStart === periodStart).reduce((n, u) => n + u.credits, 0);
   const paid = org.plan === "pro" || org.plan === "enterprise";
   return {
-    plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: org.trialEndsAt, seats,
+    plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: org.trialEndsAt,
+    trialDaysLeft: org.plan === "trial" && org.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(org.trialEndsAt) - Date.now()) / 864e5)) : null,
+    seats,
     includedReviews: seats * org.includedReviewsPerSeat, usedReviews: used,
     periodStart, periodEnd: next.toISOString().slice(0, 10),
     pricePerSeatCents: 2400, overagePerReviewCents: 80,

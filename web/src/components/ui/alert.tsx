@@ -35,8 +35,9 @@ export function Alert({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{title}</p>
         {children && <div className="mt-0.5 text-sm text-fg">{children}</div>}
+        {action && <div className="mt-2 sm:hidden">{action}</div>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="hidden shrink-0 sm:block">{action}</div>}
     </div>
   );
 }

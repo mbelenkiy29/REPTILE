@@ -4,8 +4,14 @@ import { cn } from "@/lib/cn";
 import { Skeleton } from "./skeleton";
 
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+  // The wrapper scrolls sideways on narrow screens, so it's a focusable, labelled region for keyboard users.
   return (
-    <div className="relative overflow-x-auto rounded-lg border bg-bg">
+    <div
+      role="region"
+      aria-label={props["aria-label"] ? `${props["aria-label"]} (scrollable)` : "Table (scrollable)"}
+      tabIndex={0}
+      className="relative overflow-x-auto rounded-lg border bg-bg focus-visible:outline-2 focus-visible:outline-focus"
+    >
       <table className={cn("w-full border-collapse text-base", className)} {...props} />
     </div>
   );
