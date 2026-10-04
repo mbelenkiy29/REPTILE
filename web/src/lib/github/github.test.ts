@@ -211,6 +211,19 @@ describe.skipIf(!url)("GitHub App", async () => {
       expect(jobs.filter((j) => j.name === "answer-thread")).toHaveLength(0);
     });
 
+    it("BUG-011 a label from the repository's own settings starts a review", async () => {
+      await db.insert(s.reviewConfigs).values({
+        orgId: seedId("o_acme"), repoId: seedId("r_api"), strictness: 2, commentTypes: ["logic"], reviewDrafts: false, includeLabels: ["needs-review"],
+        disabledLabels: [], includeAuthors: [], excludeAuthors: [], includeBranches: [], excludeBranches: [], ignorePatterns: [], summaryOptions: { diagram: true, fileTable: true, confidence: true },
+      }).onConflictDoNothing();
+      await deliver("pull_request", ev("opened", pr(306, "lab1")));
+      await db.update(s.reviews).set({ status: "skipped", skipReason: "Not labeled" }).where(eq(s.reviews.headSha, "lab1"));
+      jobs.length = 0;
+      const labeled = { ...ev("labeled", pr(306, "lab1", { labels: [{ name: "needs-review" }] })), label: { name: "needs-review" } };
+      expect((await deliver("pull_request", labeled)).json.result).toBe("review queued");
+      expect(jobs.map((j) => j.name)).toEqual(["review-pr"]);
+    });
+
     it("BUG-007 a mention on a closed or merged pull request is ignored", async () => {
       await deliver("pull_request", ev("closed", pr(304, "m1", { state: "closed", merged: true, merged_at: new Date().toISOString() })));
       await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "m1"));

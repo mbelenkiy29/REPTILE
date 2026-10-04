@@ -1,6 +1,6 @@
 // GitHub webhook event handlers. Called after the signature is verified and the delivery id recorded.
 // They update the database and queue jobs; anything slow happens in the worker.
-import { and, eq, inArray, isNull, sql as dsql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql as dsql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { enqueue } from "@/lib/jobs";
 import { failStaleReviews } from "@/lib/review/stale";
@@ -125,9 +125,11 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
         return (await queueReview(pr, trigger, p.sender?.login ?? null)) ? "review queued" : "already reviewed";
       }
       if (p.action === "labeled") {
-        // Only labels that the review settings turn reviews on with start a review.
-        const [cfg] = await db.select({ labels: s.reviewConfigs.includeLabels }).from(s.reviewConfigs)
-          .where(and(eq(s.reviewConfigs.orgId, hit.repo.orgId), isNull(s.reviewConfigs.repoId)));
+        // Only labels that the review settings turn reviews on with start a review: the repository's own settings
+        // when it has them, else the org defaults. (Labels set only in reptile.json are applied by the worker on other triggers.)
+        const rows = await db.select({ repoId: s.reviewConfigs.repoId, labels: s.reviewConfigs.includeLabels }).from(s.reviewConfigs)
+          .where(and(eq(s.reviewConfigs.orgId, hit.repo.orgId), or(isNull(s.reviewConfigs.repoId), eq(s.reviewConfigs.repoId, hit.repo.id))));
+        const cfg = rows.find((r) => r.repoId === hit.repo.id) ?? rows.find((r) => r.repoId === null);
         if (cfg?.labels.length && cfg.labels.includes(p.label?.name)) return (await queueReview(pr, "labeled", p.sender?.login ?? null)) ? "review queued" : "already reviewed";
       }
       return `pull request ${p.action}`;
