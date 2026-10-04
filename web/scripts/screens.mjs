@@ -33,6 +33,8 @@ export const SCREENS = [
   { id: "S12", path: "/settings/members" },
   { id: "S13", path: "/settings/billing" },
   { id: "S13-trial", path: "/settings/billing", org: "o_side" },
+  { id: "S13-free", path: "/settings/billing", org: "o_solo" },
+  { id: "S12-free", path: "/settings/members", org: "o_solo" },
   { id: "S14", path: "/settings/integrations" },
   { id: "S15", path: "/settings/api-keys" },
   { id: "S16", path: "/settings/review/validate" },

@@ -10,6 +10,12 @@ export const PRICING = {
   overageCents: Number(process.env.PRICE_OVERAGE_CENTS ?? 80),
 };
 
+/** The Free plan: one person, a monthly review allowance, no card. Past the allowance reviews pause until the 1st. */
+export const FREE_PLAN = { members: 1, reviewsPerMonth: 50 } as const;
+
+/** plan "free" also marks a canceled subscription (paused, billingStatus "canceled"); Free is active only without one. */
+export const onFreePlan = (org: { plan: string; billingStatus: string }) => org.plan === "free" && org.billingStatus === "none";
+
 let client: Stripe | null = null;
 export function stripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;

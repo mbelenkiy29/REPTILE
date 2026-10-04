@@ -1,6 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
-import { openBillingPortal, startCheckout } from "@/lib/data";
+import { revalidatePath } from "next/cache";
+import { continueOnFree, openBillingPortal, startCheckout } from "@/lib/data";
 import { requireOrg } from "@/lib/data/session";
 import { attempt } from "@/lib/actions";
 
@@ -18,4 +19,13 @@ export async function portal() {
   const r = await attempt(() => openBillingPortal(ctx));
   if (!r.ok) return r;
   redirect(r.data.url);
+}
+
+/** Trial over or subscription canceled: keep reviewing on the Free plan (one person, a monthly allowance). */
+export async function chooseFree() {
+  const ctx = await requireOrg();
+  const r = await attempt(() => continueOnFree(ctx));
+  revalidatePath("/settings/billing");
+  revalidatePath("/settings/members");
+  return r;
 }

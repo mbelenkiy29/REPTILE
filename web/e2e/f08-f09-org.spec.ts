@@ -129,6 +129,40 @@ test.describe("F09 billing and API keys", () => {
     await expectAccessible(page);
   });
 
+  test("F09-H5 trial over → continue on Free → one person, 50 reviews, invites off", async ({ page, sql }) => {
+    await login(page, { next: "/onboarding/new-org" });
+    const name = `Solo ${Date.now() % 1e6}`;
+    await page.getByLabel("Organization name").fill(name);
+    await page.getByRole("button", { name: "Create organization" }).click();
+    await page.waitForURL("**/onboarding");
+    await sql`update organizations set trial_ends_at = now() - interval '1 day' where name = ${name}`;
+    await page.goto("/settings/billing");
+    await expect(page.getByText("Your trial has ended")).toBeVisible();
+    await expectAccessible(page);
+    await page.getByRole("button", { name: "Continue on Free" }).click();
+    await expect(toast(page, "You're on the Free plan")).toBeVisible();
+    await expect(page.getByText("the Free plan is for one person")).toBeVisible();
+    await expect(page.getByText("Your trial has ended")).toHaveCount(0);
+    const [org] = await sql`select plan, billing_status from organizations where name = ${name}`;
+    expect(org).toEqual({ plan: "free", billing_status: "none" });
+    await page.goto("/settings/members");
+    await expect(page.getByText("The Free plan is for one person")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Invite", exact: true })).toHaveCount(0);
+    await expectAccessible(page);
+  });
+
+  test("F09-E4 an org with teammates isn't offered Free when its subscription ends", async ({ page, sql }) => {
+    await sql`update organizations set plan = 'free', billing_status = 'canceled' where id = ${seedId("o_contoso")}`;
+    try {
+      await login(page, { email: USERS.lena, org: "o_contoso", next: "/settings/billing" });
+      await expect(page.getByText("The subscription is canceled")).toBeVisible();
+      await expect(page.getByText(/needs the other members removed/)).toBeVisible();
+      await expect(page.getByRole("button", { name: "Continue on Free" })).toHaveCount(0);
+    } finally {
+      await sql`update organizations set plan = 'pro', billing_status = 'active' where id = ${seedId("o_contoso")}`;
+    }
+  });
+
   test("F09-H4 / F09-N4 a new API key reads the API until it's revoked", async ({ page, request }) => {
     expect((await request.get("/api/v1/repositories")).status()).toBe(401);
     expect((await request.get("/api/v1/repositories", { headers: { authorization: "Bearer rpt_nope" } })).status()).toBe(401);

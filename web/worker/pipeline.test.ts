@@ -154,6 +154,29 @@ describe.skipIf(!url)("worker pipeline", async () => {
       await db.update(s.organizations).set({ plan: "pro", trialEndsAt: null }).where(eq(s.organizations.id, seedId("o_contoso")));
     });
 
+    it("the Free plan reviews for one member up to 50 a month, then pauses until the 1st", async () => {
+      const contoso = seedId("o_contoso");
+      const setOrg = (v: Partial<typeof s.organizations.$inferInsert>) => db.update(s.organizations).set(v).where(eq(s.organizations.id, contoso));
+      const run = async (n: number, sha: string) => runReview((await queueReview(await openPr(n, sha, file1, patch1), "opened", "lenaf"))!, attempt);
+      await setOrg({ plan: "free", billingStatus: "none" });
+      try {
+        // Contoso has two members.
+        expect((await run(30, "free1")).result).toMatch(/Free plan covers one member/);
+        await db.delete(s.memberships).where(and(eq(s.memberships.orgId, contoso), eq(s.memberships.userId, seedId("u_jordan"))));
+        const period = new Date().toISOString().slice(0, 8) + "01";
+        await db.delete(s.usageEvents).where(eq(s.usageEvents.orgId, contoso));
+        await db.insert(s.usageEvents).values(Array.from({ length: 50 }, () => ({ orgId: contoso, credits: 1, periodStart: period, billable: false })));
+        expect((await run(31, "free2")).result).toMatch(/50 free reviews/);
+        await db.delete(s.usageEvents).where(eq(s.usageEvents.orgId, contoso));
+        expect((await run(32, "free3")).result).toBe("completed");
+        const [u] = await db.select().from(s.usageEvents).where(eq(s.usageEvents.orgId, contoso));
+        expect(u.billable).toBe(false);
+      } finally {
+        await setOrg({ plan: "pro", billingStatus: "active" });
+        await db.insert(s.memberships).values({ orgId: contoso, userId: seedId("u_jordan"), role: "member" }).onConflictDoNothing();
+      }
+    });
+
     it("retries before posting, and records a failure on the last attempt without billing", async () => {
       const pr = await openPr(12, "sha6", file1, patch1);
       const original = model.review.bind(model);

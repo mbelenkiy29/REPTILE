@@ -130,6 +130,7 @@ export function createSeed(now = Date.now()): Store {
     { id: "o_acme", name: "Acme", slug: "acme", plan: "pro", trialEndsAt: null, includedReviewsPerSeat: 50, billingStatus: "active", createdAt: iso(now - 120 * DAY) },
     { id: "o_side", name: "Side project", slug: "side-project", plan: "trial", trialEndsAt: iso(now + 3 * DAY), includedReviewsPerSeat: 50, billingStatus: "none", createdAt: iso(now - 11 * DAY) },
     { id: "o_contoso", name: "Contoso", slug: "contoso", plan: "pro", trialEndsAt: null, includedReviewsPerSeat: 50, billingStatus: "active", createdAt: iso(now - 300 * DAY) },
+    { id: "o_solo", name: "Solo", slug: "solo", plan: "free", trialEndsAt: null, includedReviewsPerSeat: 50, billingStatus: "none", createdAt: iso(now - 60 * DAY) },
   ];
 
   const memberships: Membership[] = [
@@ -141,6 +142,7 @@ export function createSeed(now = Date.now()): Store {
     { orgId: "o_side", userId: ME, role: "admin", createdAt: iso(now - 11 * DAY) },
     { orgId: "o_contoso", userId: "u_lena", role: "admin", createdAt: iso(now - 300 * DAY) },
     { orgId: "o_contoso", userId: ME, role: "member", createdAt: iso(now - 40 * DAY) },
+    { orgId: "o_solo", userId: ME, role: "admin", createdAt: iso(now - 60 * DAY) },
   ];
 
   const invites: Invite[] = [
@@ -175,6 +177,7 @@ export function createSeed(now = Date.now()): Store {
     { ...DEFAULT_CONFIG, orgId: "o_acme", repoId: null, ignorePatterns: ["**/*.generated.ts", "dist/**"], disabledLabels: ["no-review"], excludeAuthors: ["dependabot[bot]"], updatedAt: iso(now - 9 * DAY), updatedBy: ME },
     { ...DEFAULT_CONFIG, orgId: "o_acme", repoId: "r_web", strictness: 3, updatedAt: iso(now - 4 * DAY), updatedBy: "u_priya" },
     { ...DEFAULT_CONFIG, orgId: "o_side", repoId: null, updatedAt: iso(now - 11 * DAY), updatedBy: ME },
+    { ...DEFAULT_CONFIG, orgId: "o_solo", repoId: null, updatedAt: iso(now - 60 * DAY), updatedBy: ME },
     { ...DEFAULT_CONFIG, orgId: "o_contoso", repoId: null, updatedAt: iso(now - 200 * DAY), updatedBy: "u_lena" },
   ];
 

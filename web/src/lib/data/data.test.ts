@@ -165,6 +165,27 @@ run("data layer", async () => {
       expect((await data.getReviewConfig(jordanAcme, acmeRepo)).stored).toBeNull();
     });
 
+    it("free plan: one member and 50 reviews a month; chosen by an admin when not paying", async () => {
+      const { id } = await data.createOrganization(seedId("u_lena"), "Solo shop");
+      const admin = { userId: seedId("u_lena"), orgId: id, role: "admin" as const };
+      // Not while a paid subscription is active.
+      await db.update(s.organizations).set({ plan: "pro", billingStatus: "active" }).where(eq(s.organizations.id, id));
+      await expect(data.continueOnFree(admin)).rejects.toThrow(/Manage billing/);
+      // After the trial (or a canceled subscription) it is.
+      await db.update(s.organizations).set({ plan: "trial", billingStatus: "none", trialEndsAt: new Date(Date.now() - 864e5).toISOString() }).where(eq(s.organizations.id, id));
+      await expect(data.continueOnFree({ ...admin, role: "member" })).rejects.toBeInstanceOf(ForbiddenError);
+      await data.continueOnFree(admin);
+      const b = await data.getBilling(admin);
+      expect(b).toMatchObject({ plan: "free", billingStatus: "none", includedReviews: 50, trialDaysLeft: null });
+      // One person: no invites, and an invite made before can't be accepted.
+      await expect(data.inviteMember(admin, "friend@contoso.dev", "member")).rejects.toThrow(/Free plan is for one person/);
+      const token = "free-plan-invite-token";
+      await db.insert(s.invites).values({ orgId: id, email: "jordan@acme.dev", role: "member", tokenHash: data.hashToken(token), invitedBy: seedId("u_lena"), expiresAt: new Date(Date.now() + 864e5).toISOString() });
+      await expect(data.acceptInvite(seedId("u_jordan"), token)).rejects.toThrow(/Free plan/);
+      // Orgs with more than one member can't switch to it.
+      await expect(data.continueOnFree(lenaContoso)).rejects.toThrow(/one person/);
+    });
+
     it("new orgs get a trial, an admin and default settings; slugs stay unique", async () => {
       const a = await data.createOrganization(seedId("u_lena"), "Acme");
       const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, a.id));

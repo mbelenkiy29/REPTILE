@@ -591,6 +591,7 @@ export async function inviteMember(ctx: Ctx, email: string, role: Role): Promise
   const { rateLimit } = await import("@/lib/rate-limit");
   await rateLimit(`invite:${ctx.orgId}`, 30, 3600);
   const e = email.trim().toLowerCase();
+  await assertRoomForMember(ctx.orgId);
   const [member] = await db.select({ id: s.users.id }).from(s.memberships).innerJoin(s.users, eq(s.users.id, s.memberships.userId))
     .where(and(eq(s.memberships.orgId, ctx.orgId), eq(s.users.email, e)));
   if (member) throw new Error(`${e} is already a member.`);
@@ -629,6 +630,15 @@ export async function peekInvite(token: string) {
   return { orgName: row.org, email: row.i.email, role: row.i.role, expired: Date.parse(iso(row.i.expiresAt)!) < Date.now(), accepted: !!row.i.acceptedAt };
 }
 
+const FREE_FULL = "The Free plan is for one person. Choose the Team plan to invite teammates.";
+
+/** The Free plan has room for one member; every other plan takes as many as you pay seats for. */
+async function assertRoomForMember(orgId: string, tx: Pick<typeof db, "select"> = db) {
+  const { onFreePlan } = await import("@/lib/billing");
+  const [org] = await tx.select({ plan: s.organizations.plan, billingStatus: s.organizations.billingStatus }).from(s.organizations).where(eq(s.organizations.id, orgId));
+  if (org && onFreePlan(org)) throw new Error(FREE_FULL);
+}
+
 /** Accept an invite as the signed-in user. The email must match: invite links can be forwarded. */
 export async function acceptInvite(userId: string, token: string): Promise<{ orgId: string }> {
   const r = await db.transaction(async (tx) => {
@@ -638,6 +648,7 @@ export async function acceptInvite(userId: string, token: string): Promise<{ org
     const [u] = await tx.select().from(s.users).where(eq(s.users.id, userId));
     if (!u?.email || u.email.toLowerCase() !== inv.email.toLowerCase())
       throw new Error(`This invite is for ${inv.email}. Sign in with that email to accept it.`);
+    await assertRoomForMember(inv.orgId, tx);
     await tx.insert(s.memberships).values({ orgId: inv.orgId, userId, role: inv.role }).onConflictDoNothing();
     await tx.update(s.invites).set({ acceptedAt: now() }).where(eq(s.invites.id, inv.id));
     return { orgId: inv.orgId };
@@ -696,7 +707,7 @@ export interface Billing {
 
 export async function getBilling(ctx: Ctx): Promise<Billing> {
   await simulate();
-  const { PRICING, listInvoices } = await import("@/lib/billing");
+  const { FREE_PLAN, PRICING, listInvoices, onFreePlan } = await import("@/lib/billing");
   const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, ctx.orgId));
   const d = new Date();
   const periodStart = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
@@ -707,7 +718,8 @@ export async function getBilling(ctx: Ctx): Promise<Billing> {
   return {
     plan: org.plan, billingStatus: org.billingStatus, trialEndsAt: iso(org.trialEndsAt),
     trialDaysLeft: org.plan === "trial" && org.trialEndsAt ? Math.max(0, Math.ceil((Date.parse(iso(org.trialEndsAt)!) - Date.now()) / 864e5)) : null,
-    seats: Number(seats), includedReviews: Number(seats) * org.includedReviewsPerSeat, usedReviews: Number(used ?? 0),
+    seats: Number(seats), usedReviews: Number(used ?? 0),
+    includedReviews: onFreePlan(org) ? FREE_PLAN.reviewsPerMonth : Number(seats) * org.includedReviewsPerSeat,
     periodStart, periodEnd: next.toISOString().slice(0, 10),
     pricePerSeatCents: PRICING.seatCents, overagePerReviewCents: PRICING.overageCents,
     invoices: org.stripeCustomerId ? await listInvoices(org.stripeCustomerId) : [],
@@ -728,6 +740,20 @@ export async function openBillingPortal(ctx: Ctx): Promise<{ url: string }> {
   assertAdmin(ctx);
   const { createPortal } = await import("@/lib/billing");
   return createPortal(ctx.orgId);
+}
+
+/** Move an org that isn't paying (trial over, or subscription canceled) to the Free plan. */
+export async function continueOnFree(ctx: Ctx) {
+  await simulate();
+  assertAdmin(ctx);
+  const { FREE_PLAN } = await import("@/lib/billing");
+  const [{ n }] = await db.select({ n: count() }).from(s.memberships).where(eq(s.memberships.orgId, ctx.orgId));
+  if (Number(n) > FREE_PLAN.members) throw new Error("The Free plan is for one person. Remove the other members first, or choose the Team plan.");
+  const [org] = await db.select().from(s.organizations).where(eq(s.organizations.id, ctx.orgId));
+  if ((org.plan === "pro" || org.plan === "enterprise") && org.billingStatus !== "canceled") {
+    throw new Error("Cancel the Team plan in Manage billing first; it moves to Free when the subscription ends.");
+  }
+  await db.update(s.organizations).set({ plan: "free", billingStatus: "none", trialEndsAt: null }).where(eq(s.organizations.id, ctx.orgId));
 }
 
 /* ───────────── API keys (S15) ───────────── */

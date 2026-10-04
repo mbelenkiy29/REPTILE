@@ -4,6 +4,7 @@ import { requireOrg } from "@/lib/data/session";
 import { formatDate, relativeTime, formatMoney } from "@/lib/format";
 import { PageHeader } from "@/components/page-header";
 import { AdminOnlyNotice } from "@/components/no-access";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TD, TH, THead, TRow } from "@/components/ui/table";
 import { InviteDialog, MemberRowActions, RevokeInvite, RoleSelect } from "./client";
@@ -15,14 +16,20 @@ export default async function MembersPage() {
   const [{ members, invites }, billing] = await Promise.all([listMembers(ctx), getBilling(ctx)]);
   const isAdmin = ctx.role === "admin";
   const paid = billing.plan === "pro" || billing.plan === "enterprise";
+  const free = billing.plan === "free" && billing.billingStatus === "none";
   return (
     <>
       <PageHeader
         title="Members"
         description={`${members.length} ${members.length === 1 ? "person" : "people"} in ${ctx.org.name}.${paid ? ` Each member is a seat at ${formatMoney(billing.pricePerSeatCents)} a month.` : ""}`}
-        actions={isAdmin && <InviteDialog />}
+        actions={isAdmin && !free && <InviteDialog />}
       />
       {!isAdmin && <div className="mb-4"><AdminOnlyNotice what="members and roles" /></div>}
+      {free && (
+        <Alert className="mb-4" title="The Free plan is for one person">
+          To review pull requests for teammates too, choose the Team plan in <a className="text-accent underline underline-offset-2" href="/settings/billing">Billing</a>.
+        </Alert>
+      )}
       <div className="flex flex-col gap-6">
         <Table aria-label="Members">
           <THead>

@@ -5,7 +5,7 @@
 import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import picomatch from "picomatch";
 import { db, schema as s, sql } from "@/db";
-import { recordUsage } from "@/lib/billing";
+import { FREE_PLAN, onFreePlan, recordUsage } from "@/lib/billing";
 import { toFinding } from "@/lib/data";
 import { gitHost, type GitHost, type PrFile, type ReviewCommentInput } from "@/lib/github";
 import { checkRunTitle, fingerprint, renderInlineComment, renderSummary, SUMMARY_MARKER } from "@/lib/review/markdown";
@@ -58,6 +58,14 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
   // Plan gate: an ended trial or a canceled subscription pauses reviews (nothing is posted, nothing billed).
   if (org.plan === "trial" && org.trialEndsAt && Date.parse(new Date(org.trialEndsAt).toISOString()) < Date.now()) return finishSkipped("The trial has ended. Choose a plan to resume reviews.");
   if (org.billingStatus === "canceled" && org.plan !== "trial" && org.plan !== "enterprise") return finishSkipped("The subscription is canceled. Choose a plan to resume reviews.");
+  if (onFreePlan(org)) {
+    const [{ n }] = await db.select({ n: dsql<number>`count(*)::int` }).from(s.memberships).where(eq(s.memberships.orgId, org.id));
+    if (n > FREE_PLAN.members) return finishSkipped("The Free plan covers one member. Choose the Team plan to review for the whole team.");
+    const period = now().slice(0, 8) + "01";
+    const [{ used }] = await db.select({ used: dsql<number>`coalesce(sum(${s.usageEvents.credits}), 0)::int` }).from(s.usageEvents)
+      .where(and(eq(s.usageEvents.orgId, org.id), eq(s.usageEvents.periodStart, period)));
+    if (used >= FREE_PLAN.reviewsPerMonth) return finishSkipped(`This month's ${FREE_PLAN.reviewsPerMonth} free reviews are used. Reviews resume on the 1st, or choose the Team plan.`);
+  }
   if (inst.suspendedAt || repo.removedAt) return finishSkipped("The GitHub App no longer has access to this repository.");
 
   await db.update(s.reviews).set({ status: "running", startedAt: now(), updatedAt: now() }).where(eq(s.reviews.id, reviewId));
