@@ -56,11 +56,12 @@ test.describe("F02 reviews in the dashboard", () => {
 
 test.describe("F03 run again", () => {
   test("F03-H1 / F03-E1 Run again queues one review, even when clicked twice", async ({ page, sql, browser }) => {
-    await login(page, { next: "/reviews?status=completed" });
-    await page.locator("table a").nth(1).click();
-    await page.waitForURL(/\/reviews\/[0-9a-f-]{36}$/);
-    const id = new URL(page.url()).pathname.split("/").pop()!;
-    const [{ pull_request_id: prId }] = await sql`select pull_request_id from reviews where id = ${id}`;
+    // A completed review whose PR has nothing in flight (the seed keeps one PR's review running on purpose).
+    const [{ id, pull_request_id: prId }] = await sql`select r.id, r.pull_request_id from reviews r
+      where r.org_id = ${seedId("o_acme")} and r.status = 'completed'
+        and not exists (select 1 from reviews l where l.pull_request_id = r.pull_request_id and l.status in ('queued', 'running'))
+      order by r.queued_at desc limit 1`;
+    await login(page, { next: `/reviews/${id}` });
     // A second tab clicks at the same moment.
     const other = await (await browser.newContext()).newPage();
     await login(other, { next: `/reviews/${id}` });
@@ -68,13 +69,16 @@ test.describe("F03 run again", () => {
       page.getByRole("button", { name: "Run again" }).click(),
       other.getByRole("button", { name: "Run again" }).click(),
     ]);
-    await page.waitForURL((u) => !u.pathname.endsWith(id));
-    const live = await sql`select count(*)::int as n from reviews where pull_request_id = ${prId} and status in ('queued', 'running')`;
-    expect(live[0].n).toBeLessThanOrEqual(1);
-    await expect(toast(other, /already running|Review queued/)).toBeVisible();
-    await other.context().close();
+    // Whichever tab wins goes to the new review; the other says one is already running.
+    const moved = (p: typeof page) => p.waitForURL((u) => !u.pathname.endsWith(id), { timeout: 15_000 }).then(() => p);
+    const winner = await Promise.any([moved(page), moved(other)]);
+    const loser = winner === page ? other : page;
+    await expect(toast(loser, /already running/)).toBeVisible();
+    const created = await sql`select count(*)::int as n from reviews where pull_request_id = ${prId} and trigger = 'manual' and queued_at > now() - interval '1 minute'`;
+    expect(created[0].n).toBe(1);
     // The worker finishes it.
-    await expect(page.getByRole("tab", { name: /Findings/ })).toBeVisible({ timeout: 45_000 });
+    await expect(winner.getByRole("tab", { name: /Findings/ })).toBeVisible({ timeout: 45_000 });
+    await other.context().close();
   });
 
   test("F03-N1 a member can run a review again (by design) without errors", async ({ page }) => {

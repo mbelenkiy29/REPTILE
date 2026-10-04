@@ -91,7 +91,7 @@ export default async function ReviewPage({ params }: PageProps<"/reviews/[id]">)
 
         {inProgress ? (
           <Card title="Reviewing" description="Reading the changes and the code around them. This usually takes 2 to 4 minutes.">
-            <div className="flex flex-col gap-2" aria-busy aria-label="Review in progress">
+            <div className="flex flex-col gap-2" role="status" aria-busy aria-label="Review in progress">
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-4 w-3/5" />

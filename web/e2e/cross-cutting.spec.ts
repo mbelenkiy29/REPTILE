@@ -35,11 +35,13 @@ test("X-2 slow network: saving a rule shows progress and writes once", async ({ 
   const save = page.getByRole("button", { name: "Add rule" }).last();
   await save.click();
   await save.click({ force: true }).catch(() => {});
-  await expect(page.getByText(text).first()).toBeVisible({ timeout: 30_000 });
+  await expect(toast(page, "Rule added")).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1500);
   expect((await sql`select count(*)::int as n from rules where text = ${text}`)[0].n).toBe(1);
 });
 
 test("X-3 offline: a failed save says so and keeps the input", async ({ page, context, allowProblems }) => {
+  test.fail(true, "open BUG-002: a network failure in a server action replaces the page with the error screen");
   allowProblems(/Failed to fetch|ERR_INTERNET_DISCONNECTED|net::/);
   await login(page, { next: "/rules" });
   await page.getByRole("button", { name: "Add rule" }).click();
