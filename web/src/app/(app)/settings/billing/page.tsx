@@ -74,7 +74,8 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
             </div>
           </Card>
           <Card title="Usage this month" description={`${formatDate(b.periodStart)} to ${formatDate(b.periodEnd)}`}>
-            <UsageMeter label="Reviews" used={b.usedReviews} included={b.includedReviews} />
+            <UsageMeter label="Reviews" used={b.usedReviews} included={b.includedReviews}
+              overNote={paid ? undefined : b.plan === "trial" ? (n) => `${n} over the Team plan's included amount. Trial reviews aren't billed.` : null} />
             <p className="mt-3 text-sm text-muted">Skipped reviews and failed attempts don&apos;t count. A re-run on new commits counts as a review.</p>
           </Card>
         </div>

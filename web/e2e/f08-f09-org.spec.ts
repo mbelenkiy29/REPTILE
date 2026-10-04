@@ -163,6 +163,67 @@ test.describe("F09 billing and API keys", () => {
     }
   });
 
+  const usage = (sql: import("postgres").Sql, org: string, n: number) => sql`
+    insert into usage_events (org_id, credits, period_start, billable)
+    select ${seedId(org)}, 1, date_trunc('month', now() at time zone 'utc')::date, false from generate_series(1, ${n})`;
+  const clearUsage = (sql: import("postgres").Sql, org: string) => sql`delete from usage_events where org_id = ${seedId(org)}`;
+
+  test("F09-E5 Free with its 50 reviews used says reviews resume on the 1st, not that they're billed", async ({ page, sql }) => {
+    await usage(sql, "o_solo", 52);
+    try {
+      await login(page, { org: "o_solo", next: "/settings/billing" });
+      await expect(page.getByText("This month's 50 free reviews are used")).toBeVisible();
+      await expect(page.getByText(/billed per review/)).toHaveCount(0);
+      await expectAccessible(page);
+    } finally { await clearUsage(sql, "o_solo"); }
+  });
+
+  test("F09-E6 a trial past 50 reviews isn't told it's being billed (trial reviews are free)", async ({ page, sql }) => {
+    await usage(sql, "o_side", 55);
+    try {
+      await login(page, { org: "o_side", next: "/settings/billing" });
+      await expect(page.getByRole("meter", { name: "Reviews" })).toBeVisible();
+      await expect(page.getByText(/billed per review/)).toHaveCount(0);
+    } finally { await clearUsage(sql, "o_side"); }
+  });
+
+  test("F09-E7 double-clicking Continue on Free works once, without an error", async ({ page, sql }) => {
+    await login(page, { next: "/onboarding/new-org" });
+    const name = `Double free ${Date.now() % 1e6}`;
+    await page.getByLabel("Organization name").fill(name);
+    await page.getByRole("button", { name: "Create organization" }).click();
+    await page.waitForURL("**/onboarding");
+    await sql`update organizations set trial_ends_at = now() - interval '1 day' where name = ${name}`;
+    await page.goto("/settings/billing");
+    await page.getByRole("button", { name: "Continue on Free" }).dblclick();
+    await expect(toast(page, "You're on the Free plan")).toBeVisible();
+    await expect(page.locator("[data-sonner-toast][data-type=error]")).toHaveCount(0);
+  });
+
+  test("F09-E8 a paying org isn't offered Free", async ({ page }) => {
+    await login(page, { next: "/settings/billing" });
+    await expect(page.getByRole("button", { name: "Continue on Free" })).toHaveCount(0);
+  });
+
+  test("F09-N5 an invite to a Free org tells the invitee what to do", async ({ page, sql }) => {
+    const token = randomBytes(32).toString("base64url");
+    await sql`insert into invites (org_id, email, role, token_hash, invited_by, expires_at)
+      values (${seedId("o_solo")}, 'mateo@acme.dev', 'member', ${sha256(token)}, ${seedId("u_jordan")}, now() + interval '7 days')`;
+    await login(page, { email: USERS.mateo, next: `/invite/${token}` });
+    await page.getByRole("button", { name: "Accept and join" }).click();
+    const alert = page.getByRole("alert").filter({ hasText: "Couldn't accept the invite" });
+    await expect(alert).toContainText(/Free plan/);
+    // Mateo can't choose a plan for Solo; the message should send him to whoever can.
+    await expect(alert).not.toContainText("Choose the Team plan to invite teammates");
+    await expect(alert).toContainText(/admin/i);
+  });
+
+  test("F09-H6 S15 shows API calls for this server", async ({ page }) => {
+    await login(page, { next: "/settings/api-keys" });
+    await expect(page.getByText("http://localhost:3100/api/v1/repositories")).toBeVisible();
+    await expect(page.getByText(/reptile-cli|npm install/)).toHaveCount(0);
+  });
+
   test("F09-H4 / F09-N4 a new API key reads the API until it's revoked", async ({ page, request }) => {
     expect((await request.get("/api/v1/repositories")).status()).toBe(401);
     expect((await request.get("/api/v1/repositories", { headers: { authorization: "Bearer rpt_nope" } })).status()).toBe(401);

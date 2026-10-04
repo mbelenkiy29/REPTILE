@@ -71,7 +71,10 @@ export function StatTile({
   );
 }
 
-export function UsageMeter({ label, used, included }: { label: string; used: number; included: number }) {
+/** `overNote` explains what happens past the included amount; it depends on the plan (null shows nothing). */
+export function UsageMeter({ label, used, included, overNote = (n) => `${n} over the included amount, billed per review.` }: {
+  label: string; used: number; included: number; overNote?: ((over: string) => string) | null;
+}) {
   const pct = included ? (used / included) * 100 : 0;
   const bar = pct > 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-accent";
   return (
@@ -93,9 +96,9 @@ export function UsageMeter({ label, used, included }: { label: string; used: num
       >
         <div className={cn("h-full rounded-pill transition-[width]", bar)} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      {pct > 100 && (
+      {pct > 100 && overNote && (
         <p className="text-sm text-danger">
-          {(used - included).toLocaleString()} over the included amount, billed per review.
+          {overNote((used - included).toLocaleString())}
         </p>
       )}
     </div>

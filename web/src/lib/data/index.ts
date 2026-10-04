@@ -633,10 +633,12 @@ export async function peekInvite(token: string) {
 const FREE_FULL = "The Free plan is for one person. Choose the Team plan to invite teammates.";
 
 /** The Free plan has room for one member; every other plan takes as many as you pay seats for. */
-async function assertRoomForMember(orgId: string, tx: Pick<typeof db, "select"> = db) {
+async function assertRoomForMember(orgId: string, tx: Pick<typeof db, "select"> = db, joining = false) {
   const { onFreePlan } = await import("@/lib/billing");
-  const [org] = await tx.select({ plan: s.organizations.plan, billingStatus: s.organizations.billingStatus }).from(s.organizations).where(eq(s.organizations.id, orgId));
-  if (org && onFreePlan(org)) throw new Error(FREE_FULL);
+  const [org] = await tx.select({ name: s.organizations.name, plan: s.organizations.plan, billingStatus: s.organizations.billingStatus }).from(s.organizations).where(eq(s.organizations.id, orgId));
+  if (!org || !onFreePlan(org)) return;
+  // The person accepting can't change the plan; tell them who can.
+  throw new Error(joining ? `${org.name} is on the Free plan, which is for one person. Ask an admin of ${org.name} to choose the Team plan, then open this link again.` : FREE_FULL);
 }
 
 /** Accept an invite as the signed-in user. The email must match: invite links can be forwarded. */
@@ -648,7 +650,7 @@ export async function acceptInvite(userId: string, token: string): Promise<{ org
     const [u] = await tx.select().from(s.users).where(eq(s.users.id, userId));
     if (!u?.email || u.email.toLowerCase() !== inv.email.toLowerCase())
       throw new Error(`This invite is for ${inv.email}. Sign in with that email to accept it.`);
-    await assertRoomForMember(inv.orgId, tx);
+    await assertRoomForMember(inv.orgId, tx, true);
     await tx.insert(s.memberships).values({ orgId: inv.orgId, userId, role: inv.role }).onConflictDoNothing();
     await tx.update(s.invites).set({ acceptedAt: now() }).where(eq(s.invites.id, inv.id));
     return { orgId: inv.orgId };
