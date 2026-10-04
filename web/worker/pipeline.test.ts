@@ -255,6 +255,20 @@ describe.skipIf(!url)("worker pipeline", async () => {
       expect(suggested[0].evidence.length).toBeGreaterThan(0);
       expect((await learnRules()).proposed).toBe(0); // not proposed twice
     });
+    it("proposes rules from the team's own review comments too", async () => {
+      const acme = seedId("o_acme");
+      const [pr] = await db.select().from(s.pullRequests).where(eq(s.pullRequests.orgId, acme)).limit(1);
+      await db.insert(s.feedback).values([
+        { orgId: acme, pullRequestId: pr.id, filePath: "src/money.ts", actorLogin: "priya-r", kind: "human_comment", body: "Use integer cents for money, not floats.", providerId: 7001 },
+        { orgId: acme, pullRequestId: pr.id, filePath: "src/tax.ts", actorLogin: "mateo-silva", kind: "human_comment", body: "Again: amounts are cents. Floats lose pennies.", providerId: 7002 },
+      ]);
+      expect((await learnRules()).proposed).toBeGreaterThan(0);
+      const [rule] = await db.select().from(s.rules).where(and(eq(s.rules.orgId, acme), eq(s.rules.status, "suggested"), eq(s.rules.text, "Store money as integer cents, never floats.")));
+      expect(rule.evidence.map((e) => e.kind)).toEqual(["human_comment", "human_comment"]);
+      expect(rule.evidence[0].url).toBe(pr.url);
+      expect(rule.evidence[0].excerpt).toMatch(/integer cents/);
+    });
+
     it("cleanup runs", async () => {
       expect(await cleanup()).toMatchObject({ result: "clean" });
     });

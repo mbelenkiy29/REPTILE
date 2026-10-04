@@ -269,7 +269,9 @@ export const findings = pgTable("findings", {
 export const feedback = pgTable("feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  findingId: uuid("finding_id").notNull().references(() => findings.id, { onDelete: "cascade" }),
+  findingId: uuid("finding_id").references(() => findings.id, { onDelete: "cascade" }),
+  pullRequestId: uuid("pull_request_id").references(() => pullRequests.id, { onDelete: "cascade" }),
+  filePath: text("file_path"),
   actorLogin: text("actor_login").notNull(),
   kind: text("kind", { enum: ["thumbs_up", "thumbs_down", "reply", "human_comment"] }).notNull(),
   body: text("body"),

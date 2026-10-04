@@ -1,5 +1,5 @@
 // The smaller jobs: answer-thread, sync-reactions, learn-rules, cleanup, billing-emails, send-email.
-import { and, eq, gte, inArray, isNotNull, lt, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, sql as dsql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { failStaleReviews } from "@/lib/review/stale";
 import { gitHost } from "@/lib/github";
@@ -57,21 +57,26 @@ export async function syncReactions(limit = 500) {
 /** Propose rules from the last 30 days of 👎 and replies. Suggestions only; an admin accepts them. */
 export async function learnRules() {
   const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const kinds = ["thumbs_down", "reply", "human_comment"] as const;
   const orgs = await db.selectDistinct({ orgId: s.feedback.orgId }).from(s.feedback)
-    .where(and(gte(s.feedback.createdAt, since), inArray(s.feedback.kind, ["thumbs_down", "reply"])));
+    .where(and(gte(s.feedback.createdAt, since), inArray(s.feedback.kind, kinds)));
   const model = await reviewModel();
   let proposed = 0;
   for (const { orgId } of orgs) {
+    // Feedback on REPTILE's findings, and the team's own review comments (no finding; PR and file on the row).
     const fb = await db.select({ fb: s.feedback, f: s.findings, url: s.pullRequests.url }).from(s.feedback)
-      .innerJoin(s.findings, eq(s.findings.id, s.feedback.findingId))
-      .innerJoin(s.pullRequests, eq(s.pullRequests.id, s.findings.pullRequestId))
-      .where(and(eq(s.feedback.orgId, orgId), gte(s.feedback.createdAt, since), inArray(s.feedback.kind, ["thumbs_down", "reply"])))
+      .leftJoin(s.findings, eq(s.findings.id, s.feedback.findingId))
+      .innerJoin(s.pullRequests, eq(s.pullRequests.id, dsql`coalesce(${s.feedback.pullRequestId}, ${s.findings.pullRequestId})`))
+      .where(and(eq(s.feedback.orgId, orgId), gte(s.feedback.createdAt, since), inArray(s.feedback.kind, kinds)))
+      .orderBy(desc(s.feedback.createdAt))
       .limit(80);
     if (fb.length < 2) continue;
     const existing = await db.select({ text: s.rules.text }).from(s.rules).where(eq(s.rules.orgId, orgId));
-    const evidence = fb.map((x) => x.fb.kind === "thumbs_down"
-      ? `👎 on "${x.f.title}" in ${x.f.filePath}`
-      : `Reply to "${x.f.title}" in ${x.f.filePath}: "${(x.fb.body ?? "").slice(0, 300)}"`);
+    const quote = (t: string | null) => `"${(t ?? "").slice(0, 300)}"`;
+    const evidence = fb.map(({ fb: x, f }) =>
+      x.kind === "thumbs_down" ? `👎 on "${f!.title}" in ${f!.filePath}`
+      : x.kind === "reply" ? `Reply to "${f!.title}" in ${f!.filePath}: ${quote(x.body)}`
+      : `Reviewer comment on ${x.filePath ?? "the pull request"}: ${quote(x.body)}`);
     const { out } = await model.proposeRules({ evidence, existing: existing.map((r) => r.text) });
     const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const known = new Set(existing.map((r) => norm(r.text)));

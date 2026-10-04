@@ -31,7 +31,12 @@ export class FakeReviewModel implements ReviewModel {
     return { text: `About "${req.finding.title}": the line can fail as described.`, usage: { inputTokens: 200, outputTokens: 40 } };
   }
   async proposeRules(req: Parameters<ReviewModel["proposeRules"]>[0]) {
-    return { out: { rules: req.evidence.length >= 2 ? [{ text: "Don't flag missing error handling in test files.", path_globs: ["**/*.test.ts"], evidence_indexes: [0, 1] }] : [] }, usage: { inputTokens: 200, outputTokens: 50 } };
+    // Evidence about money in cents → a money rule citing it; anything else → the generic test-file rule.
+    const cents = req.evidence.flatMap((e, i) => (/cents/i.test(e) ? [i] : []));
+    const rules = cents.length >= 2
+      ? [{ text: "Store money as integer cents, never floats.", path_globs: [], evidence_indexes: cents }]
+      : req.evidence.length >= 2 ? [{ text: "Don't flag missing error handling in test files.", path_globs: ["**/*.test.ts"], evidence_indexes: [0, 1] }] : [];
+    return { out: { rules }, usage: { inputTokens: 200, outputTokens: 50 } };
   }
 }
 

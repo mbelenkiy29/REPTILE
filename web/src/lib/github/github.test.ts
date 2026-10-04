@@ -224,6 +224,23 @@ describe.skipIf(!url)("GitHub App", async () => {
       expect(jobs.map((j) => j.name)).toEqual(["review-pr"]);
     });
 
+    it("a teammate's own review comment is kept for learning; outsiders', bots' and short ones aren't", async () => {
+      await deliver("pull_request", ev("opened", pr(320, "hc1")));
+      const comment = (id: number, body: string, association = "MEMBER", type = "User") => ({
+        action: "created", installation: { id: ACME_INSTALL }, repository: { id: API }, pull_request: { number: 320 },
+        comment: { id, body, path: "src/billing/invoice.ts", user: { login: "priya-r", type }, author_association: association },
+      });
+      const body = "Money should be integer cents here, never floats; rounding drifts on invoices.";
+      expect((await deliver("pull_request_review_comment", comment(9001, body))).json.result).toBe("human comment recorded");
+      expect((await deliver("pull_request_review_comment", comment(9001, body))).json.result).toBe("human comment recorded"); // redelivered by GitHub with a new delivery id
+      expect((await deliver("pull_request_review_comment", comment(9002, body, "NONE"))).json.result).toBe("not a collaborator");
+      expect((await deliver("pull_request_review_comment", comment(9003, body, "MEMBER", "Bot"))).json.result).toBe("ignored");
+      expect((await deliver("pull_request_review_comment", comment(9004, "nit"))).json.result).toBe("too short to learn from");
+      const rows = await db.select().from(s.feedback).where(eq(s.feedback.kind, "human_comment"));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ findingId: null, filePath: "src/billing/invoice.ts", body, actorLogin: "priya-r", providerId: 9001 });
+    });
+
     it("BUG-007 a mention on a closed or merged pull request is ignored", async () => {
       await deliver("pull_request", ev("closed", pr(304, "m1", { state: "closed", merged: true, merged_at: new Date().toISOString() })));
       await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "m1"));

@@ -75,6 +75,27 @@ export async function queueReview(pr: typeof s.pullRequests.$inferSelect, trigge
   }
 }
 
+/**
+ * A review comment the team wrote themselves, outside REPTILE's threads: what they ask for in review is the best evidence
+ * for rules REPTILE should suggest (learn-rules job). Only people with write access, and only comments with some substance.
+ */
+async function recordHumanComment(installationId: number | undefined, p: Json): Promise<string> {
+  const body = String(p.comment?.body ?? "").trim();
+  if (mentionsBot(body)) return "ignored";
+  if (!canTrigger(p.comment?.author_association)) return "not a collaborator";
+  if (body.length < 20) return "too short to learn from";
+  const hit = installationId ? await repoRow(installationId, p.repository.id) : null;
+  if (!hit) return "repo not linked";
+  const [pr] = await db.select({ id: s.pullRequests.id }).from(s.pullRequests)
+    .where(and(eq(s.pullRequests.repoId, hit.repo.id), eq(s.pullRequests.number, p.pull_request?.number)));
+  if (!pr) return "pull request unknown";
+  await db.insert(s.feedback).values({
+    orgId: hit.repo.orgId, pullRequestId: pr.id, filePath: p.comment.path ?? null, actorLogin: p.comment.user.login,
+    kind: "human_comment", body: body.slice(0, 4000), providerId: p.comment.id,
+  }).onConflictDoNothing();
+  return "human comment recorded";
+}
+
 export async function handleGitHubEvent(event: string, p: Json): Promise<string> {
   const installationId: number | undefined = p.installation?.id;
 
@@ -165,12 +186,11 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
     case "pull_request_review_comment": {
       if (p.action !== "created" || p.comment?.user?.type === "Bot") return "ignored";
       const parent = p.comment?.in_reply_to_id as number | undefined;
-      if (!parent) return "not a reply";
-      const [f] = await db.select().from(s.findings).where(eq(s.findings.providerCommentId, parent));
-      if (!f) return "not our thread";
+      const [f] = parent ? await db.select().from(s.findings).where(eq(s.findings.providerCommentId, parent)) : [];
+      if (!f) return recordHumanComment(installationId, p);
       await db.insert(s.feedback).values({ orgId: f.orgId, findingId: f.id, actorLogin: p.comment.user.login, kind: "reply", body: String(p.comment.body).slice(0, 4000), providerId: p.comment.id });
       if (mentionsBot(p.comment.body) && canTrigger(p.comment.author_association)) {
-        await enqueue("answer-thread", { findingId: f.id, commentId: parent, body: String(p.comment.body).slice(0, 4000), author: p.comment.user.login });
+        await enqueue("answer-thread", { findingId: f.id, commentId: parent!, body: String(p.comment.body).slice(0, 4000), author: p.comment.user.login });
         return "answer queued";
       }
       return "reply recorded";
