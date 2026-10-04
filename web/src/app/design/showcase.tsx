@@ -2,6 +2,7 @@
 import * as React from "react";
 import { FolderGit2, Inbox, MoreHorizontal, Plus, ScrollText, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Badge, ConfidenceScore, SeverityBadge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,14 +64,15 @@ export function Showcase() {
   const [sort, setSort] = React.useState<"asc" | "desc">("asc");
 
   return (
-    <AppShell
-      title="Design system"
-      actions={
-        <Button size="sm" onClick={() => toast.success("Settings saved")}>
-          Fire a toast
-        </Button>
-      }
-    >
+    <AppShell orgs={[{ id: "demo", name: "Acme", role: "admin" }]} currentOrgId="demo" user={{ name: "Jordan Lee", email: "jordan@acme.dev" }}>
+      <PageHeader
+        title="Design system"
+        actions={
+          <Button size="sm" onClick={() => toast.success("Settings saved")}>
+            Fire a toast
+          </Button>
+        }
+      />
       <div className="flex flex-col gap-10">
         <p className="max-w-[var(--layout-form-max)] text-muted">
           Every primitive in its states, built from <code className="text-fg">replica/design/tokens.json</code>. Use the theme

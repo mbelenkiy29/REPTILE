@@ -4,17 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dialog as D } from "radix-ui";
 import {
-  BookOpen, ChartColumn, ChevronsUpDown, CreditCard, FolderGit2, History, KeyRound, Menu,
-  PanelLeft, Plug, ScrollText, SlidersHorizontal, Users, X, type LucideIcon,
+  BookOpen, ChartColumn, Check, ChevronsUpDown, CreditCard, FlaskConical, FolderGit2, History, KeyRound, LogOut, Menu,
+  PanelLeft, Plug, Plus, ScrollText, SlidersHorizontal, Users, X, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useStored, writeStored } from "@/lib/use-stored";
+import { resetData, setSim, signOut, switchOrg } from "@/app/actions/session";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./ui/theme-toggle";
 import { Tooltip } from "./ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { toast } from "./ui/toaster";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 const main: NavItem[] = [
@@ -31,6 +33,20 @@ const settings: NavItem[] = [
   { href: "/settings/api-keys", label: "API keys", icon: KeyRound },
   { href: "/settings/integrations", label: "Integrations", icon: Plug },
 ];
+
+export interface ShellOrg {
+  id: string;
+  name: string;
+  role: "admin" | "member";
+}
+
+export interface ShellProps {
+  orgs: ShellOrg[];
+  currentOrgId: string;
+  user: { name: string; email: string };
+  dev?: { sim: "none" | "slow" | "error" } | null;
+  children: React.ReactNode;
+}
 
 function NavLinks({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const path = usePathname();
@@ -71,39 +87,117 @@ function NavLinks({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?:
   );
 }
 
-function OrgSwitcher({ collapsed }: { collapsed?: boolean }) {
+function OrgSwitcher({ orgs, currentOrgId, collapsed }: { orgs: ShellOrg[]; currentOrgId: string; collapsed?: boolean }) {
+  const current = orgs.find((o) => o.id === currentOrgId) ?? orgs[0];
+  const [pending, start] = React.useTransition();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-busy={pending || undefined}
           className={cn(
-            "mx-3 flex h-9 items-center gap-2 rounded-md px-2 text-left hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus",
+            "mx-3 flex h-9 min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus",
             collapsed && "justify-center px-0",
           )}
-          aria-label="Switch organization, current: Acme"
+          aria-label={`Switch organization, current: ${current.name}`}
         >
-          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-xs font-semibold text-on-accent">A</span>
+          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-xs font-semibold text-on-accent" aria-hidden>
+            {current.name.charAt(0).toUpperCase()}
+          </span>
           {!collapsed && (
             <>
-              <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">Acme</span>
-              <ChevronsUpDown className="size-3.5 text-muted" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">{current.name}</span>
+              <ChevronsUpDown className="size-3.5 shrink-0 text-muted" aria-hidden />
             </>
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-        <DropdownMenuItem>Acme</DropdownMenuItem>
-        <DropdownMenuItem>Side project</DropdownMenuItem>
+        {orgs.map((o) => (
+          <DropdownMenuItem key={o.id} onSelect={() => o.id !== current.id && start(() => switchOrg(o.id))}>
+            <span className="min-w-0 flex-1 truncate">{o.name}</span>
+            <span className="text-xs text-muted">{o.role === "admin" ? "Admin" : "Member"}</span>
+            {o.id === current.id && <Check aria-label="Current" />}
+          </DropdownMenuItem>
+        ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem>New organization</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/onboarding/new-org">
+            <Plus aria-hidden /> New organization
+          </Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-export function AppShell({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
+function DevPanel({ sim, collapsed }: { sim: "none" | "slow" | "error"; collapsed?: boolean }) {
+  const [pending, start] = React.useTransition();
+  if (collapsed) return null;
+  return (
+    <div className="mx-3 rounded-md border border-dashed border-border-strong p-2 text-xs">
+      <p className="mb-1.5 flex items-center gap-1.5 font-medium text-muted">
+        <FlaskConical className="size-3.5" aria-hidden /> Dev data
+      </p>
+      <label className="flex items-center justify-between gap-2 text-muted">
+        Data layer
+        <select
+          className="h-6 rounded-sm border border-border-input bg-bg px-1 text-xs text-fg"
+          value={sim}
+          disabled={pending}
+          onChange={(e) => start(() => setSim(e.target.value as "none" | "slow" | "error"))}
+        >
+          <option value="none">Normal</option>
+          <option value="slow">Slow (1.5s)</option>
+          <option value="error">Failing</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            await resetData();
+            toast.success("Seed data restored");
+          })
+        }
+        className="mt-1.5 text-accent underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        Reset seed data
+      </button>
+    </div>
+  );
+}
+
+function UserMenu({ user }: { user: { name: string; email: string } }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="grid size-7 place-items-center rounded-pill bg-surface-sunken text-xs font-semibold text-fg hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus"
+          aria-label={`Account menu for ${user.name}`}
+        >
+          {user.name.charAt(0)}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-60">
+        <DropdownMenuLabel>
+          <span className="block truncate text-sm font-medium text-fg">{user.name}</span>
+          <span className="block truncate">{user.email}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => signOut()}>
+          <LogOut aria-hidden /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function AppShell({ orgs, currentOrgId, user, dev, children }: ShellProps) {
   const collapsed = useStored("sidebar") === "collapsed";
   const [drawer, setDrawer] = React.useState(false);
   const toggle = () => writeStored("sidebar", collapsed ? null : "collapsed");
@@ -119,27 +213,30 @@ export function AppShell({ title, actions, children }: { title: string; actions?
 
       <aside
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col gap-3 border-r bg-bg py-3 lg:flex",
+          "sticky top-0 hidden h-dvh shrink-0 flex-col gap-3 overflow-y-auto border-r bg-bg py-3 lg:flex",
           collapsed ? "w-[var(--layout-sidebar-collapsed)]" : "w-[var(--layout-sidebar)]",
         )}
       >
-        <OrgSwitcher collapsed={collapsed} />
+        <OrgSwitcher orgs={orgs} currentOrgId={currentOrgId} collapsed={collapsed} />
         <NavLinks collapsed={collapsed} />
-        <div className={cn("mt-auto px-3", collapsed && "flex justify-center")}>
-          <Button variant="ghost" size="icon-sm" onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            <PanelLeft aria-hidden />
-          </Button>
+        <div className="mt-auto flex flex-col gap-3">
+          {dev && <DevPanel sim={dev.sim} collapsed={collapsed} />}
+          <div className={cn("px-3", collapsed && "flex justify-center")}>
+            <Button variant="ghost" size="icon-sm" onClick={toggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+              <PanelLeft aria-hidden />
+            </Button>
+          </div>
         </div>
       </aside>
 
       <D.Root open={drawer} onOpenChange={setDrawer}>
         <D.Portal>
           <D.Overlay className="fixed inset-0 z-[var(--z-modal)] bg-overlay/50 lg:hidden" />
-          <D.Content className="fixed inset-y-0 left-0 z-[var(--z-modal)] flex w-[280px] max-w-[85vw] flex-col gap-3 border-r bg-bg py-3 shadow-pop lg:hidden">
+          <D.Content className="fixed inset-y-0 left-0 z-[var(--z-modal)] flex w-[280px] max-w-[85vw] flex-col gap-3 overflow-y-auto border-r bg-bg py-3 shadow-pop lg:hidden">
             <D.Title className="sr-only">Navigation</D.Title>
             <D.Description className="sr-only">Main navigation and settings</D.Description>
             <div className="flex items-center justify-between pr-3">
-              <OrgSwitcher />
+              <OrgSwitcher orgs={orgs} currentOrgId={currentOrgId} />
               <D.Close asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="Close navigation">
                   <X aria-hidden />
@@ -147,6 +244,7 @@ export function AppShell({ title, actions, children }: { title: string; actions?
               </D.Close>
             </div>
             <NavLinks onNavigate={() => setDrawer(false)} />
+            {dev && <div className="mt-auto"><DevPanel sim={dev.sim} /></div>}
           </D.Content>
         </D.Portal>
       </D.Root>
@@ -156,12 +254,12 @@ export function AppShell({ title, actions, children }: { title: string; actions?
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setDrawer(true)} aria-label="Open navigation">
             <Menu aria-hidden />
           </Button>
-          <h1 className="min-w-0 flex-1 truncate text-md font-semibold text-fg">{title}</h1>
-          {actions}
+          <Link href="/repos" className="text-md font-semibold tracking-tight text-fg lg:hidden">
+            REPTILE
+          </Link>
+          <div className="flex-1" />
           <ThemeToggle />
-          <span className="grid size-7 place-items-center rounded-pill bg-surface-sunken text-xs font-semibold text-fg" aria-label="Signed in as Jordan">
-            J
-          </span>
+          <UserMenu user={user} />
         </header>
         <main id="content" tabIndex={-1} className="mx-auto w-full max-w-[var(--layout-content-max)] flex-1 px-4 py-6 focus:outline-none md:px-6">
           {children}

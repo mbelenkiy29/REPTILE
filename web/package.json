@@ -10,7 +10,8 @@
     "tokens": "node ../replica/design/build-tokens.mjs src/styles",
     "contrast": "python3 ../replica/design/contrast.py ../replica/design/tokens.json && python3 ../replica/design/contrast.py ../replica/design/tokens.dark.json",
     "typecheck": "tsc --noEmit",
-    "design:check": "node scripts/design-check.mjs"
+    "design:check": "node scripts/design-check.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -18,22 +19,28 @@
     "geist": "^1.7.2",
     "lucide-react": "^1.51.0",
     "next": "16.3.8",
+    "picomatch": "^4.0.7",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
+    "@types/picomatch": "^4.0.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }
