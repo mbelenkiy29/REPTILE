@@ -1,10 +1,10 @@
 // Org screens: S12 members, S15 API keys, S14 integrations, S13 billing, S09 knowledge, S10 analytics.
 import { chromium } from "@playwright/test";
+import { devLogin, resetSeed, seedId } from "./lib.mjs";
 
 const base = process.env.BASE_URL ?? "http://localhost:3100";
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-proxy-server"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-await ctx.addCookies([{ name: "rp_session", value: "u_jordan", url: base }]);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -13,9 +13,8 @@ const fail = (m) => { console.log("✗", m); errors.push(m); };
 const check = (cond, good, bad) => (cond ? ok(good) : fail(bad));
 const toast = (t) => page.locator("[data-sonner-toast]").filter({ hasText: t }).first().waitFor();
 
-await page.goto(base + "/repos");
-await page.getByRole("button", { name: "Reset seed data" }).click();
-await toast("Seed data restored");
+await devLogin(page, base);
+await resetSeed(page);
 
 // S12
 await page.goto(base + "/settings/members");
@@ -50,13 +49,14 @@ await page.getByRole("button", { name: "Revoke key" }).click();
 await toast("Key revoked");
 ok("S15 key revoked");
 
-// S14
+// S14: without an OAuth app configured, connecting says so instead of pretending.
 await page.goto(base + "/settings/integrations");
 await page.getByRole("button", { name: "Connect Jira" }).click();
-await toast("Jira connected");
-await page.getByRole("button", { name: "Reconnect" }).click();
-await toast("Slack connected");
-ok("S14 connect and reconnect");
+await toast("isn't set up on this server yet");
+await page.getByRole("button", { name: "Disconnect" }).first().click();
+await page.getByRole("button", { name: "Disconnect" }).last().click();
+await toast("disconnected");
+ok("S14 unconfigured connect is explained; disconnect works");
 
 // S13 (trial org)
 await page.getByRole("button", { name: /Switch organization/ }).click();
@@ -64,14 +64,14 @@ await page.getByRole("menuitem", { name: /Side project/ }).click();
 await page.waitForURL("**/repos");
 await page.goto(base + "/settings/billing");
 await page.getByRole("button", { name: "Choose the Team plan" }).first().click();
-await page.getByText("You're on the Team plan").waitFor();
-ok("S13 trial upgraded");
+await toast("Billing isn't set up on this server yet");
+ok("S13 checkout without Stripe keys explains itself (with keys it goes to Stripe Checkout)");
 
 // S09 (back to Acme)
 await page.getByRole("button", { name: /Switch organization/ }).click();
 await page.getByRole("menuitem", { name: /^Acme/ }).click();
 await page.waitForURL("**/repos");
-await page.goto(base + "/knowledge/r_api?doc=kb_3");
+await page.goto(`${base}/knowledge/${seedId("r_api")}?doc=${seedId("kb_3")}`);
 await page.getByRole("button", { name: "Edit page" }).click();
 await page.getByLabel("Markdown").fill("## Flow\n\nExports are built by a job and kept for 30 days.");
 await page.getByRole("button", { name: "Save page" }).click();

@@ -1,6 +1,7 @@
 // The core loop end to end, keyboard and mouse, on fake data:
 // sign in → new org → connect GitHub → link → repos indexing → reviews → open a review → run again → result.
 import { chromium } from "@playwright/test";
+import { resetSeed } from "./lib.mjs";
 
 const base = process.env.BASE_URL ?? "http://localhost:3100";
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-proxy-server"] });
@@ -13,11 +14,10 @@ const step = (m) => console.log("·", m);
 
 await page.goto(base + "/repos");
 step(`redirected to ${new URL(page.url()).pathname}`);
-await click(page.getByRole("button", { name: "Continue with GitHub" }));
+await click(page.getByRole("link", { name: /demo user/ }));
 await page.waitForURL("**/repos");
 step("signed in, landed on /repos");
-await page.getByRole("button", { name: "Reset seed data" }).click();
-await page.getByText("Seed data restored").waitFor();
+await resetSeed(page);
 
 await page.goto(base + "/onboarding/new-org");
 await page.getByLabel("Organization name").fill("Slice Test Co");
@@ -41,15 +41,16 @@ await click(page.getByRole("menuitem", { name: /^Acme/ }));
 await page.waitForURL("**/repos");
 await page.getByRole("link", { name: "Reviews" }).first().click(); clicks++;
 await page.waitForURL("**/reviews");
-await click(page.getByRole("link", { name: "Add idempotency to invoice retries" }).first());
-await page.waitForURL(/\/reviews\/rev_/);
+await page.goto(base + "/reviews?status=completed");
+await click(page.locator("table a").first());
+await page.waitForURL(/\/reviews\/[0-9a-f-]{36}$/);
 step(`opened review: ${await page.getByRole("heading", { level: 1 }).innerText()}`);
 await click(page.getByRole("tab", { name: "As posted on GitHub" }));
 await page.getByRole("heading", { name: "Summary comment" }).waitFor();
 step("GitHub preview tab shows the summary comment");
 const before = new URL(page.url()).pathname;
 await click(page.getByRole("button", { name: "Run again" }));
-await page.waitForURL((u) => u.pathname !== before && u.pathname.startsWith("/reviews/rev_"));
+await page.waitForURL((u) => u.pathname !== before && /\/reviews\/[0-9a-f-]{36}$/.test(u.pathname));
 await page.getByText(/^Reviewing$/).first().waitFor({ timeout: 15_000 });
 step("new review shows as in progress");
 step(`re-run queued at ${new URL(page.url()).pathname}`);

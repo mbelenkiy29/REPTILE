@@ -1,10 +1,10 @@
 // Config screens, driven mostly by keyboard: S07 save + persist, S16 validate, S08 add/accept/delete, S06 override + reset.
 import { chromium } from "@playwright/test";
+import { devLogin, resetSeed, seedId } from "./lib.mjs";
 
 const base = process.env.BASE_URL ?? "http://localhost:3100";
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-proxy-server"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-await ctx.addCookies([{ name: "rp_session", value: "u_jordan", url: base }]);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -12,9 +12,8 @@ const ok = (m) => console.log("✓", m);
 const fail = (m) => { console.log("✗", m); errors.push(m); };
 const check = (cond, good, bad) => (cond ? ok(good) : fail(bad));
 
-await page.goto(base + "/repos");
-await page.getByRole("button", { name: "Reset seed data" }).click();
-await page.getByText("Seed data restored").waitFor();
+await devLogin(page, base);
+await resetSeed(page);
 
 // S07: keyboard only.
 await page.goto(base + "/settings/review");
@@ -66,13 +65,13 @@ await page.getByText("Rule deleted").waitFor();
 ok("S08 deleted a rule after confirming");
 
 // S06 override + reset
-await page.goto(base + "/repos/r_api?tab=settings");
+await page.goto(`${base}/repos/${seedId("r_api")}?tab=settings`);
 await page.getByRole("button", { name: "Customize for this repository" }).click();
 await page.getByRole("radio", { name: "1" }).click();
 await page.getByRole("button", { name: "Save changes" }).click();
 await page.getByText("Saved repository settings").waitFor();
 await page.reload();
-check((await page.getByRole("tab", { name: "Settings (custom)" }).isVisible()), "S06 repository override saved", "S06 override not shown");
+check(await page.getByRole("tab", { name: "Settings (custom)" }).waitFor({ timeout: 10_000 }).then(() => true, () => false), "S06 repository override saved", "S06 override not shown");
 await page.getByRole("button", { name: "Use organization settings" }).click();
 await page.getByRole("button", { name: "Use organization settings" }).last().click();
 await page.getByText("Using organization settings").waitFor();

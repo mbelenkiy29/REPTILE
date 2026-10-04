@@ -13,7 +13,7 @@ No Redis and no microservices.
 | web | Next.js 16 (App Router) + TypeScript, Tailwind | Server components and server actions cover the whole dashboard. Webhook routes live in the same app. |
 | database | Postgres 16 on **Neon** + `pgvector` + `citext` | One database for app data, the job queue and code embeddings. Neon branches give every preview deploy its own database. |
 | ORM | Drizzle | SQL-first, so the partial unique indexes and the vector column in `schema.sql` map 1:1. Migrations run with drizzle-kit. |
-| auth | **Auth.js** (GitHub provider, then Google and email magic links) | Signing in with GitHub gives the user token we need to prove they can see an installation before linking it (F01). |
+| auth | **Auth.js** (the GitHub App's user authorization, Google, email links via Resend) | Signing in with GitHub gives the user token we need to prove they can see an installation before linking it (F01). |
 | GitHub | Our own **GitHub App**, using `@octokit/app` + `@octokit/webhooks` | The official way to read code, post reviews and checks, and receive webhooks. Each installation gets its own scoped token. |
 | LLM | **Claude API** (`@anthropic-ai/sdk`), `claude-opus-5-5` for every call | One model means one prompt-cache namespace. Cost is tuned per call with `output_config.effort`: `low` for triage and labels, `high` for the review pass, `xhigh` for the "deep" tier. Adaptive thinking. Server-side `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a refusal is rerouted instead of failing the review. |
 | embeddings | **Voyage AI `voyage-code-3`** (1024-d) | Anthropic has no embeddings endpoint. Voyage is the code-tuned model that Anthropic's docs recommend. It sits behind a small `embed()` interface so it can be swapped. |

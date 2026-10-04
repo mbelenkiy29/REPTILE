@@ -6,7 +6,7 @@ import { attempt } from "@/lib/actions";
 
 export async function create(name: string) {
   const ctx = await requireOrg();
-  const n = name.trim();
+  const n = String(name).trim();
   if (n.length < 2 || n.length > 60) return { ok: false as const, error: "Name it in 2 to 60 characters, like “CI pipeline”." };
   const r = await attempt(async () => (await createApiKey(ctx, n)).secret);
   revalidatePath("/settings/api-keys");

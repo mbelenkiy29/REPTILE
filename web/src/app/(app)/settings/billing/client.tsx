@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
-import { checkout } from "./actions";
+import { checkout, portal } from "./actions";
 
 export function CheckoutButton({ className }: { className?: string }) {
   const [pending, start] = React.useTransition();
@@ -16,11 +16,14 @@ export function CheckoutButton({ className }: { className?: string }) {
   );
 }
 
-/** Opens the Stripe customer portal once /replica-backend wires Stripe. */
-export function PortalButton() {
+export function PortalButton({ label = "Manage billing" }: { label?: string }) {
+  const [pending, start] = React.useTransition();
   return (
-    <Button size="sm" variant="secondary" onClick={() => toast.info("Card, invoices and cancellation open in Stripe's portal once billing is connected.")}>
-      Manage billing
+    <Button size="sm" variant="secondary" loading={pending} onClick={() => start(async () => {
+      const r = await portal();
+      if (r && !r.ok) toast.error(r.error);
+    })}>
+      {label}
     </Button>
   );
 }

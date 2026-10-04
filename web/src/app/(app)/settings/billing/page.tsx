@@ -36,10 +36,11 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
             {trialDays === 0 ? "Reviews are paused. Choose a plan to start them again; settings and rules are kept." : "Reviews pause when it ends. Your settings, rules and history stay."}
           </Alert>
         )}
-        {b.billingStatus === "past_due" && <Alert variant="danger" title="The last payment failed">Update your card to keep reviews running.</Alert>}
+        {b.billingStatus === "past_due" && <Alert variant="danger" title="The last payment failed" action={isAdmin && <PortalButton label="Update card" />}>Update your card to keep reviews running.</Alert>}
+        {b.billingStatus === "canceled" && b.plan !== "trial" && <Alert variant="warning" title="The subscription is canceled" action={isAdmin && <CheckoutButton />}>Reviews are paused. Choose a plan to start them again; settings and history are kept.</Alert>}
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Card title="Plan" actions={paid && isAdmin && <PortalButton />}>
+          <Card title="Plan" actions={paid && isAdmin && b.billingStatus !== "canceled" && <PortalButton />}>
             <div className="flex flex-col gap-3">
               <p className="flex items-center gap-2 text-lg text-fg">{PLAN[b.plan]} <Badge tone={paid ? "success" : "neutral"}>{paid ? "Active" : b.plan === "trial" ? "Trial" : "Free"}</Badge></p>
               <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-base">
@@ -49,6 +50,7 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
                 {paid && <><dt className="text-muted">This month so far</dt><dd className="tabular-nums text-fg">{formatMoney(estimate)}</dd></>}
               </dl>
               {!paid && isAdmin && <CheckoutButton className="self-start" />}
+              {paid && isAdmin && <p className="text-sm text-muted">Change seats, update the card or cancel in one click from Manage billing.</p>}
             </div>
           </Card>
           <Card title="Usage this month" description={`${formatDate(b.periodStart)} to ${formatDate(b.periodEnd)}`}>
@@ -69,7 +71,12 @@ export default async function BillingPage({ searchParams }: PageProps<"/settings
                   <TRow key={i.id}>
                     <TD>{formatDate(i.date)}</TD>
                     <TD numeric>{formatMoney(i.amountCents)}</TD>
-                    <TD><Badge tone={i.status === "paid" ? "success" : "warning"}>{i.status === "paid" ? "Paid" : "Open"}</Badge></TD>
+                    <TD>
+                      <span className="flex items-center gap-3">
+                        <Badge tone={i.status === "paid" ? "success" : "warning"}>{i.status === "paid" ? "Paid" : "Open"}</Badge>
+                        {i.url && <a className="text-sm text-accent underline underline-offset-2" href={i.url} target="_blank" rel="noreferrer">View</a>}
+                      </span>
+                    </TD>
                   </TRow>
                 ))}
               </tbody>

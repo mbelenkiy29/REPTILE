@@ -6,7 +6,7 @@ import { attempt } from "@/lib/actions";
 
 export async function rerun(reviewId: string) {
   const ctx = await requireOrg();
-  const r = await attempt(async () => (await rerunReview(ctx, reviewId)).id);
+  const r = await attempt(async () => (await rerunReview(ctx, String(reviewId))).id);
   revalidatePath("/reviews");
   return r;
 }

@@ -9,7 +9,8 @@ const done = <T,>(r: T) => { revalidatePath("/settings/members"); return r; };
 
 export async function invite(email: string, role: Role) {
   const ctx = await requireOrg();
-  const e = z.email("Enter an email address, like dev@company.com.").safeParse(email.trim());
+  if (role !== "admin" && role !== "member") return { ok: false as const, error: "Pick a role." };
+  const e = z.email("Enter an email address, like dev@company.com.").max(254).safeParse(String(email).trim());
   if (!e.success) return { ok: false as const, error: e.error.issues[0].message };
   return done(await attempt(() => inviteMember(ctx, e.data, role)));
 }
@@ -19,6 +20,7 @@ export async function revoke(id: string) {
 }
 export async function setRole(userId: string, role: Role) {
   const ctx = await requireOrg();
+  if (role !== "admin" && role !== "member") return { ok: false as const, error: "Pick a role." };
   return done(await attempt(() => changeRole(ctx, userId, role)));
 }
 export async function remove(userId: string) {

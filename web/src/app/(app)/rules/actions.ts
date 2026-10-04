@@ -19,6 +19,7 @@ export async function saveRule(id: string | null, input: RuleForm) {
   const parsed = RuleInput.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message };
   const r = await attempt(async () => {
+    if (id && typeof id !== "string") throw new Error("Bad id.");
     if (id) await updateRule(ctx, id, parsed.data);
     else await createRule(ctx, parsed.data);
   });
@@ -28,6 +29,7 @@ export async function saveRule(id: string | null, input: RuleForm) {
 
 export async function changeRuleStatus(id: string, status: RuleStatus) {
   const ctx = await requireOrg();
+  if (!["active", "suggested", "disabled"].includes(status)) return { ok: false as const, error: "Unknown status." };
   const r = await attempt(() => setRuleStatus(ctx, id, status));
   revalidatePath("/rules");
   return r;

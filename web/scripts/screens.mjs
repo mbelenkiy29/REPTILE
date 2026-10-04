@@ -4,6 +4,7 @@
 // Usage: node scripts/screens.mjs [S05 S11 ...]   (no args = every screen)
 import { chromium } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { devLogin, seedId } from "./lib.mjs";
 
 const base = process.env.BASE_URL ?? "http://localhost:3100";
 const out = new URL("../../replica/clone-screens/", import.meta.url).pathname;
@@ -12,19 +13,19 @@ const only = new Set(process.argv.slice(2));
 // org: which seeded org to view as (o_acme admin, o_side empty admin, o_contoso member)
 export const SCREENS = [
   { id: "S01", path: "/login", auth: false },
-  { id: "S01-sent", path: "/login?sent=jordan%40acme.dev", auth: false },
+  { id: "S01-sent", path: "/login?sent=1", auth: false },
   { id: "S02", path: "/onboarding", org: "o_side" },
   { id: "S04", path: "/onboarding/link", org: "o_side" },
   { id: "S05", path: "/repos" },
   { id: "S05-empty", path: "/repos", org: "o_side" },
   { id: "S05-member", path: "/repos", org: "o_contoso" },
-  { id: "S06", path: "/repos/r_api" },
-  { id: "S06-failed", path: "/repos/r_infra" },
+  { id: "S06", path: `/repos/${seedId("r_api")}` },
+  { id: "S06-failed", path: `/repos/${seedId("r_infra")}` },
   { id: "S07", path: "/settings/review" },
   { id: "S07-member", path: "/settings/review", org: "o_contoso" },
   { id: "S08", path: "/rules" },
   { id: "S08-empty", path: "/rules", org: "o_side" },
-  { id: "S09", path: "/knowledge/r_api" },
+  { id: "S09", path: `/knowledge/${seedId("r_api")}` },
   { id: "S10", path: "/analytics" },
   { id: "S10-empty", path: "/analytics", org: "o_side" },
   { id: "S11", path: "/reviews" },
@@ -35,7 +36,7 @@ export const SCREENS = [
   { id: "S14", path: "/settings/integrations" },
   { id: "S15", path: "/settings/api-keys" },
   { id: "S16", path: "/settings/review/validate" },
-  { id: "S17", path: "/reviews/rev_0" },
+  { id: "S17", path: `/reviews/${seedId("rev_0")}` },
   { id: "S11-error", path: "/reviews", sim: "error" },
 ];
 
@@ -44,12 +45,9 @@ let problems = 0;
 for (const s of SCREENS.filter((x) => !only.size || [...only].some((o) => x.id.startsWith(o)))) {
   for (const vp of [{ w: 1440, h: 900, tag: "" }, { w: 390, h: 844, tag: "-mobile" }]) {
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, reducedMotion: "reduce" });
-    const cookies = [];
-    if (s.auth !== false) cookies.push({ name: "rp_session", value: "u_jordan", url: base });
-    if (s.org) cookies.push({ name: "rp_org", value: s.org, url: base });
-    if (s.sim) cookies.push({ name: "rp_sim", value: s.sim, url: base });
-    if (cookies.length) await ctx.addCookies(cookies);
     const page = await ctx.newPage();
+    if (s.auth !== false) await devLogin(page, base, { org: s.org ?? "o_acme" });
+    if (s.sim) await ctx.addCookies([{ name: "rp_sim", value: s.sim, url: base }]);
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (m) => {
