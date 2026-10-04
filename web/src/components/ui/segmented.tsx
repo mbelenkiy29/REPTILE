@@ -26,7 +26,7 @@ export function Segmented<T extends string>({
       onValueChange={(v) => v && onValueChange(v as T)}
       aria-label={label}
       disabled={disabled}
-      className={cn("inline-flex rounded-md border bg-surface-sunken p-0.5", className)}
+      className={cn("inline-flex w-fit rounded-md border bg-surface-sunken p-0.5", className)}
     >
       {options.map((o) => (
         <ToggleGroup.Item
