@@ -8,10 +8,11 @@ import { db, schema as s } from "@/db";
 import { createOrganization, listInstallations } from "@/lib/data";
 import { ORG_COOKIE, SIM_COOKIE, getSessionUser, requireOrg, requireUser } from "@/lib/data/session";
 import { attempt } from "@/lib/actions";
+import { safeRedirectPath } from "@/lib/safe-next";
 import { rateLimit, RateLimitError } from "@/lib/rate-limit";
 
 const cookieOpts = { httpOnly: true, sameSite: "lax" as const, path: "/", secure: process.env.NODE_ENV === "production" && !devLoginEnabled() };
-const safeNext = (n: unknown) => (typeof n === "string" && n.startsWith("/") && !n.startsWith("//") ? n : "/repos");
+const safeNext = (n: unknown) => safeRedirectPath(n);
 
 export async function signIn(formData: FormData) {
   const provider = String(formData.get("provider") ?? "");

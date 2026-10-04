@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { devLoginEnabled } from "@/auth";
 import { db, schema as s } from "@/db";
+import { safeRedirectPath } from "@/lib/safe-next";
 
 // Local/CI sign-in as a seeded user (AUTH_DEV_LOGIN=1 and APP_URL on localhost only). 404 everywhere else.
 export async function GET(req: Request) {
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   if (!user) return new NextResponse(`No user with email ${email}. Run npm run db:seed.`, { status: 404 });
   const token = randomBytes(32).toString("hex");
   await db.insert(s.sessions).values({ sessionToken: token, userId: user.id, expires: new Date(Date.now() + 86400_000) });
-  const res = NextResponse.redirect(new URL(next.startsWith("/") && !next.startsWith("//") ? next : "/repos", url));
+  const res = NextResponse.redirect(new URL(safeRedirectPath(next), url));
   res.cookies.set("authjs.session-token", token, { httpOnly: true, sameSite: "lax", path: "/" });
   if (url.searchParams.get("org")) res.cookies.set("rp_org", url.searchParams.get("org")!, { httpOnly: true, sameSite: "lax", path: "/" });
   return res;

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { safeRedirectPath } from "@/lib/safe-next";
 import { Mail } from "lucide-react";
 import { enabledProviders } from "@/auth";
 import { emailSignIn, signIn } from "@/app/actions/session";
@@ -25,7 +26,7 @@ const ERRORS: Record<string, string> = {
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const sp = await searchParams;
-  if (await getSessionUser()) redirect(typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : "/repos");
+  if (await getSessionUser()) redirect(safeRedirectPath(sp.next));
   const next = typeof sp.next === "string" ? sp.next : (typeof sp.callbackUrl === "string" ? new URL(sp.callbackUrl, "http://x").pathname : "");
   const sent = sp.sent === "1";
   const error = typeof sp.error === "string" ? ERRORS[sp.error] ?? ERRORS.unknown : null;
