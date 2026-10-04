@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "../styles/tailwind-theme.css";
+@import "../styles/tokens.css";
+
+/* App glue: the geist package exposes its fonts as CSS variables with hashed family names. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html { background: var(--c-bg); }
+  body {
+    @apply bg-bg text-fg font-sans text-base;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  *, ::before, ::after { border-color: var(--c-border); }
+  :focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
+  ::selection { background: var(--c-accent-soft); }
+  code, kbd, pre, samp { @apply font-mono; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

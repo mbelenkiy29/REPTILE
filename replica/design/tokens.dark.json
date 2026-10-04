@@ -1,0 +1,234 @@
+{
+  "_about": "REPTILE design tokens. Roles inferred from the Greptile recon (S01-S20); values are neutral placeholders, not Greptile's. replica-brand swaps values, never names. Check with: python3 contrast.py tokens.json && python3 contrast.py tokens.dark.json",
+  "theme": "dark",
+  "color": {
+    "bg": "#0c0f13",
+    "surface": "#14181e",
+    "surface-sunken": "#090b0e",
+    "border": "#252b33",
+    "border-strong": "#323a45",
+    "border-input": "#6c7684",
+    "text": "#e7ebf0",
+    "text-muted": "#98a2b0",
+    "accent": "#8196ff",
+    "accent-hover": "#9cadff",
+    "accent-soft": "#1a2142",
+    "on-accent": "#0c0f13",
+    "danger": "#ff7a70",
+    "danger-soft": "#391617",
+    "on-danger": "#0c0f13",
+    "warning": "#e6a63e",
+    "warning-soft": "#30230b",
+    "success": "#4fc48b",
+    "success-soft": "#0f291c",
+    "info": "#6db4ff",
+    "info-soft": "#0e2135",
+    "focus": "#8196ff",
+    "overlay": "#000000"
+  },
+  "pairs": [
+    [
+      "text",
+      "bg"
+    ],
+    [
+      "text",
+      "surface"
+    ],
+    [
+      "text",
+      "surface-sunken"
+    ],
+    [
+      "text-muted",
+      "bg"
+    ],
+    [
+      "text-muted",
+      "surface"
+    ],
+    [
+      "text-muted",
+      "surface-sunken"
+    ],
+    [
+      "on-accent",
+      "accent"
+    ],
+    [
+      "on-accent",
+      "accent-hover"
+    ],
+    [
+      "accent",
+      "bg"
+    ],
+    [
+      "accent",
+      "surface"
+    ],
+    [
+      "accent",
+      "accent-soft"
+    ],
+    [
+      "on-danger",
+      "danger"
+    ],
+    [
+      "danger",
+      "bg"
+    ],
+    [
+      "danger",
+      "danger-soft"
+    ],
+    [
+      "warning",
+      "bg"
+    ],
+    [
+      "warning",
+      "warning-soft"
+    ],
+    [
+      "success",
+      "bg"
+    ],
+    [
+      "success",
+      "success-soft"
+    ],
+    [
+      "info",
+      "bg"
+    ],
+    [
+      "info",
+      "info-soft"
+    ],
+    [
+      "border-input",
+      "bg",
+      "ui"
+    ],
+    [
+      "border-input",
+      "surface",
+      "ui"
+    ],
+    [
+      "focus",
+      "bg",
+      "ui"
+    ],
+    [
+      "focus",
+      "surface",
+      "ui"
+    ],
+    [
+      "success",
+      "bg",
+      "ui"
+    ],
+    [
+      "text-muted",
+      "bg",
+      "ui"
+    ]
+  ],
+  "shadow": {
+    "card": "0 1px 2px rgba(0,0,0,.30)",
+    "pop": "0 12px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04)"
+  },
+  "font": {
+    "sans": "Geist, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    "mono": "Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+  },
+  "type": {
+    "xs": {
+      "size": 12,
+      "line": 16,
+      "weight": 500
+    },
+    "sm": {
+      "size": 13,
+      "line": 20,
+      "weight": 400
+    },
+    "base": {
+      "size": 14,
+      "line": 22,
+      "weight": 400
+    },
+    "md": {
+      "size": 16,
+      "line": 24,
+      "weight": 500
+    },
+    "lg": {
+      "size": 20,
+      "line": 28,
+      "weight": 600
+    },
+    "xl": {
+      "size": 28,
+      "line": 34,
+      "weight": 650
+    },
+    "display": {
+      "size": 44,
+      "line": 48,
+      "weight": 700
+    }
+  },
+  "space": [
+    0,
+    2,
+    4,
+    6,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ],
+  "radius": {
+    "sm": 4,
+    "md": 6,
+    "lg": 10,
+    "xl": 14,
+    "pill": 999
+  },
+  "motion": {
+    "fast": "120ms",
+    "base": "180ms",
+    "slow": "280ms",
+    "ease": "cubic-bezier(.2,.8,.2,1)"
+  },
+  "layout": {
+    "sidebar": 240,
+    "sidebar-collapsed": 56,
+    "header": 52,
+    "content-max": 1200,
+    "form-max": 640,
+    "breakpoints": {
+      "sm": 640,
+      "md": 768,
+      "lg": 1024,
+      "xl": 1280
+    }
+  },
+  "z": {
+    "dropdown": 30,
+    "sticky": 20,
+    "modal": 50,
+    "toast": 60,
+    "tooltip": 70
+  }
+}

@@ -10,7 +10,7 @@ No Redis and no microservices.
 
 | layer | choice | why |
 | --- | --- | --- |
-| web | Next.js 15 (App Router) + TypeScript, Tailwind | Server components and server actions cover the whole dashboard. Webhook routes live in the same app. |
+| web | Next.js 16 (App Router) + TypeScript, Tailwind | Server components and server actions cover the whole dashboard. Webhook routes live in the same app. |
 | database | Postgres 16 on **Neon** + `pgvector` + `citext` | One database for app data, the job queue and code embeddings. Neon branches give every preview deploy its own database. |
 | ORM | Drizzle | SQL-first, so the partial unique indexes and the vector column in `schema.sql` map 1:1. Migrations run with drizzle-kit. |
 | auth | **Auth.js** (GitHub provider, then Google and email magic links) | Signing in with GitHub gives the user token we need to prove they can see an installation before linking it (F01). |
