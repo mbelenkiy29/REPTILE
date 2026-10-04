@@ -17,18 +17,19 @@ export default async function ApiKeysPage() {
   const ctx = await requireOrg();
   const keys = await listApiKeys(ctx);
   const isAdmin = ctx.role === "admin";
+  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   return (
     <>
       <PageHeader
         title="API keys"
-        description="For the REPTILE CLI, CI pipelines and the API. A key acts for the whole organization, so keep it in a secret store."
+        description="For CI pipelines and scripts that read from the REPTILE API. A key can read everything in this organization, so keep it in a secret store."
         actions={isAdmin && keys.length > 0 && <CreateKey />}
       />
       {!isAdmin && <div className="mb-4"><AdminOnlyNotice what="API keys" /></div>}
       <div className="flex max-w-4xl flex-col gap-6">
         {keys.length === 0 ? (
           <div className="rounded-lg border">
-            <EmptyState icon={KeyRound} title="No API keys" body="Create one to review branches from your terminal or call the API from CI." action={isAdmin ? <CreateKey /> : undefined} />
+            <EmptyState icon={KeyRound} title="No API keys" body="Create one to read repositories and reviews from CI or your own scripts." action={isAdmin ? <CreateKey /> : undefined} />
           </div>
         ) : (
           <Table aria-label="API keys">
@@ -54,10 +55,10 @@ export default async function ApiKeysPage() {
             </tbody>
           </Table>
         )}
-        <section aria-labelledby="cli" className="flex flex-col gap-3">
-          <h2 id="cli" className="text-md font-semibold text-fg">Review from your terminal</h2>
-          <CodeBlock title="terminal" code={`npm install -g reptile-cli\nexport REPTILE_API_KEY=rpt_...\nreptile review            # this branch against main\nreptile review -b develop # against another branch`} />
-          <p className="text-sm text-muted">The CLI ships with the backend; the commands above show how it will work.</p>
+        <section aria-labelledby="api" className="flex flex-col gap-3">
+          <h2 id="api" className="text-md font-semibold text-fg">Call the API</h2>
+          <CodeBlock title="terminal" code={`export REPTILE_API_KEY=rpt_...\ncurl -H "Authorization: Bearer $REPTILE_API_KEY" ${base}/api/v1/repositories\ncurl -H "Authorization: Bearer $REPTILE_API_KEY" ${base}/api/v1/reviews/<review id>`} />
+          <p className="text-sm text-muted">Keys are read-only: they list repositories with their index status and fetch a review with its findings. Up to 600 requests a minute per key.</p>
         </section>
       </div>
     </>
