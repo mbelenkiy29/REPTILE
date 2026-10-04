@@ -24,3 +24,21 @@
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Rendered markdown (review previews, knowledge base). Tokens only. */
+@layer components {
+  .md { @apply text-base text-fg; overflow-wrap: anywhere; }
+  .md > * + * { margin-top: calc(var(--spacing) * 3); }
+  .md h1, .md h2, .md h3, .md h4 { @apply font-semibold text-fg; }
+  .md h1 { @apply text-lg; } .md h2 { @apply text-md; } .md h3 { @apply text-md; } .md h4 { @apply text-base; }
+  .md a { @apply text-accent underline underline-offset-2; }
+  .md ul { @apply list-disc pl-5; } .md ol { @apply list-decimal pl-5; }
+  .md li + li { margin-top: calc(var(--spacing) * 1); }
+  .md code { @apply rounded-sm bg-surface-sunken px-1 py-px font-mono text-sm; }
+  .md pre { @apply overflow-x-auto rounded-md border bg-surface-sunken p-3 font-mono text-sm; }
+  .md pre code { @apply bg-transparent p-0; }
+  .md table { @apply block w-full overflow-x-auto border-collapse text-sm; }
+  .md th, .md td { @apply border px-2 py-1 text-left; }
+  .md th { @apply bg-surface font-medium; }
+  .md blockquote { @apply border-l-2 border-border-strong pl-3 text-muted; }
+}

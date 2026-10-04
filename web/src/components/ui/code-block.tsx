@@ -33,7 +33,7 @@ export function CodeBlock({ code, title, className }: { code: string; title?: st
         <span className="font-mono text-xs text-muted">{title}</span>
         <CopyButton value={code} />
       </div>
-      <pre className="overflow-x-auto p-3 font-mono text-sm leading-5 text-fg">
+      <pre tabIndex={0} aria-label={title ?? "Code"} className="overflow-x-auto p-3 font-mono text-sm leading-5 text-fg focus-visible:outline-2 focus-visible:outline-focus">
         <code>{code}</code>
       </pre>
     </div>

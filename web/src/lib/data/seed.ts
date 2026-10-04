@@ -226,19 +226,19 @@ export function createSeed(now = Date.now()): Store {
   for (let i = 0; i < 64; i++) {
     const r = i === 0 ? repos[0] : pick(acmeReviewable);
     const opened = now - Math.floor(rnd() * 30 * DAY) - 2 * HOUR;
-    const author = pick(AUTHORS);
-    const draft = rnd() < 0.06;
-    const merged = !draft && rnd() < 0.7 && opened < now - 6 * HOUR;
+    const author = i === 0 ? "priya-r" : pick(AUTHORS);
+    const draft = i !== 0 && rnd() < 0.06;
+    const merged = i !== 0 && !draft && rnd() < 0.7 && opened < now - 6 * HOUR;
     const pr: PullRequest = {
       id: `pr_${i}`, orgId: r.orgId, repoId: r.id, number: n++, title: i === 0 ? PR_TITLES[0] : pick(PR_TITLES),
-      authorLogin: author, baseBranch: "main", headSha: sha(), state: merged ? "merged" : rnd() < 0.1 ? "closed" : "open",
+      authorLogin: author, baseBranch: "main", headSha: sha(), state: merged ? "merged" : i !== 0 && rnd() < 0.1 ? "closed" : "open",
       isDraft: draft, labels: rnd() < 0.3 ? ["backend"] : [], url: `https://github.com/${r.fullName}/pull/${n - 1}`,
       openedAt: iso(opened), mergedAt: merged ? iso(opened + (2 + rnd() * 40) * HOUR) : null,
     };
     prs.push(pr);
 
     const skipped = draft || author === "dependabot[bot]";
-    const failed = !skipped && rnd() < 0.04;
+    const failed = i !== 0 && !skipped && rnd() < 0.04;
     const running = i === 1;
     const status: Review["status"] = running ? "running" : skipped ? "skipped" : failed ? "failed" : "completed";
     const reviewId = `rev_${i}`;
@@ -259,7 +259,7 @@ export function createSeed(now = Date.now()): Store {
       error: failed ? "The model request timed out twice. Comment @reptile to try again." : null,
       confidenceScore: score, verdict,
       summaryMd: status === "completed"
-        ? `This change ${pr.title.charAt(0).toLowerCase() + pr.title.slice(1)}. It touches ${2 + (i % 5)} files across the ${r.fullName.split("/")[1]} service.`
+        ? `${pr.title}. The change touches ${2 + (i % 5)} files in the ${r.fullName.split("/")[1]} service.`
         : null,
       diagramMermaid: status === "completed"
         ? "sequenceDiagram\n  participant C as Client\n  participant A as API\n  participant Q as Queue\n  C->>A: POST /exports\n  A->>Q: enqueue(export)\n  A-->>C: 202 Accepted\n  Q->>A: export.done\n"

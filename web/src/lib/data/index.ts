@@ -251,6 +251,28 @@ export async function deleteRule(ctx: Ctx, id: string) {
 
 /* ───────────── reviews (S11, review detail, S17/S18 preview) ───────────── */
 
+/** Fake worker: re-runs move queued → running (3s) → completed (10s), reusing the PR's last result.
+ *  The real worker (pg-boss on Fly) replaces this; nothing calls it outside this file. */
+function advanceFakeReviews() {
+  const s = store();
+  const t = Date.now();
+  for (const r of s.reviews) {
+    if (r.trigger !== "manual" || (r.status !== "queued" && r.status !== "running")) continue;
+    const age = t - Date.parse(r.queuedAt);
+    if (age < 3000) continue;
+    if (age < 10_000) { r.status = "running"; continue; }
+    const prev = s.reviews.find((x) => x.pullRequestId === r.pullRequestId && x.id !== r.id && x.status === "completed");
+    Object.assign(r, {
+      status: "completed", completedAt: new Date().toISOString(), creditsUsed: 1,
+      confidenceScore: prev?.confidenceScore ?? 5, verdict: prev?.verdict ?? "Safe to merge",
+      summaryMd: prev?.summaryMd ?? "No changes need attention.", diagramMermaid: prev?.diagramMermaid ?? null,
+      filesReviewed: prev?.filesReviewed ?? [], checked: prev?.checked.length ? prev.checked : ["Error handling", "Tenant isolation", "Input validation"],
+    });
+    for (const f of s.findings) if (f.pullRequestId === r.pullRequestId && f.status === "open") f.lastSeenReviewId = r.id;
+    s.usage.push({ orgId: r.orgId, reviewId: r.id, credits: 1, periodStart: new Date().toISOString().slice(0, 8) + "01" });
+  }
+}
+
 export interface ReviewRow extends Review {
   pr: PullRequest;
   repo: Pick<Repository, "id" | "fullName">;
@@ -262,6 +284,7 @@ export async function listReviews(
   f: { repoId?: string; status?: ReviewStatus | "all"; q?: string; cursor?: string; limit?: number } = {},
 ): Promise<{ items: ReviewRow[]; nextCursor: string | null; total: number }> {
   await simulate();
+  advanceFakeReviews();
   const s = store();
   const limit = f.limit ?? 20;
   const q = f.q?.trim().toLowerCase();
@@ -270,7 +293,7 @@ export async function listReviews(
     .map((r) => {
       const pr = s.prs.find((p) => p.id === r.pullRequestId)!;
       const repo = s.repos.find((x) => x.id === pr.repoId)!;
-      const fs = s.findings.filter((x) => x.firstReviewId === r.id);
+      const fs = s.findings.filter((x) => x.lastSeenReviewId === r.id || x.firstReviewId === r.id);
       return {
         ...r, pr, repo: { id: repo.id, fullName: repo.fullName },
         counts: { P0: fs.filter((x) => x.severity === "P0").length, P1: fs.filter((x) => x.severity === "P1").length, P2: fs.filter((x) => x.severity === "P2").length },
@@ -286,6 +309,7 @@ export async function listReviews(
 
 export async function getReview(ctx: Ctx, id: string): Promise<ReviewRow & { findings: Finding[]; rules: Rule[] }> {
   await simulate();
+  advanceFakeReviews();
   const s = store();
   const r = s.reviews.find((x) => x.id === id && x.orgId === ctx.orgId);
   if (!r) throw new NotFoundError("That review");
@@ -591,4 +615,11 @@ export async function updateKnowledgeDoc(ctx: Ctx, id: string, bodyMd: string) {
 export async function getUserName(userId: string | null): Promise<string | null> {
   if (!userId) return null;
   return store().users.find((u) => u.id === userId)?.name ?? null;
+}
+
+export async function getFinding(ctx: Ctx, id: string): Promise<Finding> {
+  await simulate();
+  const f = store().findings.find((x) => x.id === id && x.orgId === ctx.orgId);
+  if (!f) throw new NotFoundError("That finding");
+  return f;
 }
