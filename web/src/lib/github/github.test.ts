@@ -99,10 +99,12 @@ describe.skipIf(!url)("GitHub App", async () => {
 
   describe("comments", () => {
     const comment = (body: string, user = { login: "lenaf", type: "User" }) => ({
-      action: "created", installation: { id: CONTOSO_INSTALL }, repository: { id: STOREFRONT }, issue: { number: 7, pull_request: {} }, comment: { body, user },
+      action: "created", installation: { id: CONTOSO_INSTALL }, repository: { id: STOREFRONT }, issue: { number: 7, pull_request: {} }, comment: { body, user, author_association: "MEMBER" },
     });
     it("@reptile on a PR queues a review; other comments and bots don't", async () => {
-      // A finished review first, so the mention isn't blocked by the queued one above.
+      // PR 7 was merged above; reopen it (mentions on closed PRs are ignored, BUG-007), and finish its review
+      // so the mention isn't blocked by the queued one.
+      await deliver("pull_request", prEvent("reopened", pr(7, "bbb222")));
       await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "bbb222"));
       expect((await deliver("issue_comment", comment("looks good"))).json.result).toBe("ignored");
       expect((await deliver("issue_comment", comment("@reptile please look", { login: "x[bot]", type: "Bot" }))).json.result).toBe("ignored");
@@ -116,7 +118,7 @@ describe.skipIf(!url)("GitHub App", async () => {
     it("a reply under our comment is recorded, and a mention asks for an answer", async () => {
       const [f] = await db.select().from(s.findings).limit(1);
       await db.update(s.findings).set({ providerCommentId: 555 }).where(eq(s.findings.id, f.id));
-      const reply = (body: string) => ({ action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 556, in_reply_to_id: 555, body, user: { login: "priya-r", type: "User" } } });
+      const reply = (body: string) => ({ action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 556, in_reply_to_id: 555, body, user: { login: "priya-r", type: "User" }, author_association: "MEMBER" } });
       expect((await deliver("pull_request_review_comment", reply("good catch"))).json.result).toBe("reply recorded");
       expect((await deliver("pull_request_review_comment", reply("@reptile why is this a problem?"))).json.result).toBe("answer queued");
       expect(jobs.at(-1)?.name).toBe("answer-thread");
@@ -161,6 +163,60 @@ describe.skipIf(!url)("GitHub App", async () => {
       expect(await data.listPendingInstallations(ctx)).toEqual([]);
       await expect(data.linkInstallation(ctx, 777)).rejects.toThrow();
       await expect(data.linkInstallation(ctx, 888)).rejects.toBeInstanceOf(data.NotFoundError);
+    });
+  });
+
+  describe("found by /replica-test", () => {
+    // acme/api (provider id 700000); the Contoso installation is uninstalled by an earlier test.
+    const API = 700000;
+    const ev = (action: string, p: object) => prEvent(action, p, API, ACME_INSTALL);
+    const mention = (number: number, association: string, repoId = API, inst = ACME_INSTALL) => ({
+      action: "created", installation: { id: inst }, repository: { id: repoId }, issue: { number, pull_request: {} },
+      comment: { body: "@reptile review this", user: { login: "someone", type: "User" }, author_association: association },
+    });
+
+    it("BUG-004 a draft marked ready for review is reviewed automatically", async () => {
+      expect((await deliver("pull_request", ev("opened", pr(301, "draft1", { draft: true })))).json.result).toBe("review queued");
+      // The worker skips drafts.
+      await db.update(s.reviews).set({ status: "skipped", skipReason: "Draft pull request" }).where(eq(s.reviews.headSha, "draft1"));
+      jobs.length = 0;
+      expect((await deliver("pull_request", ev("ready_for_review", pr(301, "draft1")))).json.result).toBe("review queued");
+      expect(jobs.map((j) => j.name)).toEqual(["review-pr"]);
+      // Still only one automatic review of that commit once it has run.
+      expect((await deliver("pull_request", ev("synchronize", pr(301, "draft1")))).json.result).toBe("already reviewed");
+    });
+
+    it("BUG-005 a mention doesn't review a repository with reviews turned off", async () => {
+      await deliver("pull_request", prEvent("opened", pr(303, "off1"), LEGACY, ACME_INSTALL));
+      expect((await deliver("issue_comment", mention(303, "MEMBER", LEGACY, ACME_INSTALL))).json.result).toBe("reviews off");
+      expect(jobs.filter((j) => j.name === "review-pr")).toHaveLength(0);
+    });
+
+    it("BUG-006 only people with write access can start a review by mention", async () => {
+      await deliver("pull_request", ev("opened", pr(305, "out1")));
+      await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "out1"));
+      jobs.length = 0;
+      for (const association of ["NONE", "FIRST_TIME_CONTRIBUTOR", "CONTRIBUTOR", "FIRST_TIMER", undefined]) {
+        expect((await deliver("issue_comment", mention(305, association as string))).json.result, String(association)).toBe("not a collaborator");
+      }
+      expect(jobs).toHaveLength(0);
+      expect((await deliver("issue_comment", mention(305, "COLLABORATOR"))).json.result).toBe("review queued");
+    });
+
+    it("BUG-006 outsiders' questions in a thread are recorded but not answered", async () => {
+      const [f] = await db.select().from(s.findings).limit(1);
+      await db.update(s.findings).set({ providerCommentId: 777 }).where(eq(s.findings.id, f.id));
+      const reply = { action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 778, in_reply_to_id: 777, body: "@reptile explain", user: { login: "rando", type: "User" }, author_association: "NONE" } };
+      expect((await deliver("pull_request_review_comment", reply)).json.result).toBe("reply recorded");
+      expect(jobs.filter((j) => j.name === "answer-thread")).toHaveLength(0);
+    });
+
+    it("BUG-007 a mention on a closed or merged pull request is ignored", async () => {
+      await deliver("pull_request", ev("closed", pr(304, "m1", { state: "closed", merged: true, merged_at: new Date().toISOString() })));
+      await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "m1"));
+      jobs.length = 0;
+      expect((await deliver("issue_comment", mention(304, "OWNER"))).json.result).toBe("pull request closed");
+      expect(jobs).toHaveLength(0);
     });
   });
 });

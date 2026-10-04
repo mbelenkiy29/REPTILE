@@ -10,6 +10,8 @@ type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 const now = () => new Date().toISOString();
 export const botSlug = () => (process.env.GITHUB_APP_SLUG ?? "reptile").toLowerCase();
 const mentionsBot = (body: string | undefined | null) => !!body && new RegExp(`(^|\\s)@${botSlug()}(\\[bot\\])?\\b`, "i").test(body);
+/** People with write access to the repository. Anyone can comment on a public repo; only these can spend the org's reviews. */
+const canTrigger = (association: unknown) => ["OWNER", "MEMBER", "COLLABORATOR"].includes(String(association));
 
 async function installationRow(externalId: number) {
   const [i] = await db.select().from(s.installations).where(and(eq(s.installations.provider, "github"), eq(s.installations.externalInstallationId, externalId)));
@@ -50,6 +52,12 @@ export async function queueReview(pr: typeof s.pullRequests.$inferSelect, trigge
       // Already reviewing this commit: nothing to do. Reviewing an older commit: replace it.
       if (live.some((r) => r.sha === pr.headSha)) return null;
       if (live.length) await tx.update(s.reviews).set({ status: "superseded", updatedAt: now() }).where(inArray(s.reviews.id, live.map((r) => r.id)));
+      // A draft that is now ready, or a PR that just got a review label, was skipped for a reason that no longer holds:
+      // let the new review replace the skipped one, or the once-per-commit rule would block it.
+      if (trigger === "ready_for_review" || trigger === "labeled") {
+        await tx.update(s.reviews).set({ status: "superseded", updatedAt: now() })
+          .where(and(eq(s.reviews.pullRequestId, pr.id), eq(s.reviews.headSha, pr.headSha), eq(s.reviews.status, "skipped")));
+      }
       const [r] = await tx.insert(s.reviews).values({
         orgId: pr.orgId, pullRequestId: pr.id, headSha: pr.headSha, trigger, triggeredBy, status: "queued", filesReviewed: [], checked: [],
       }).returning({ id: s.reviews.id });
@@ -125,8 +133,10 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
 
     case "issue_comment": {
       if (p.action !== "created" || !p.issue?.pull_request || p.comment?.user?.type === "Bot" || !mentionsBot(p.comment?.body)) return "ignored";
+      if (!canTrigger(p.comment?.author_association)) return "not a collaborator";
       const hit = installationId ? await repoRow(installationId, p.repository.id) : null;
       if (!hit) return "repo not linked";
+      if (!hit.repo.reviewEnabled) return "reviews off";
       try {
         await rateLimit(`mention:${hit.repo.id}:${p.issue.number}`, 10, 3600);
       } catch (e) {
@@ -144,6 +154,7 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
           created_at: new Date().toISOString(),
         });
       }
+      if (pr.state !== "open") return "pull request closed";
       return (await queueReview(pr, "mention", p.comment.user.login)) ? "review queued" : "already running";
     }
 
@@ -154,7 +165,7 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
       const [f] = await db.select().from(s.findings).where(eq(s.findings.providerCommentId, parent));
       if (!f) return "not our thread";
       await db.insert(s.feedback).values({ orgId: f.orgId, findingId: f.id, actorLogin: p.comment.user.login, kind: "reply", body: String(p.comment.body).slice(0, 4000), providerId: p.comment.id });
-      if (mentionsBot(p.comment.body)) {
+      if (mentionsBot(p.comment.body) && canTrigger(p.comment.author_association)) {
         await enqueue("answer-thread", { findingId: f.id, commentId: parent, body: String(p.comment.body).slice(0, 4000), author: p.comment.user.login });
         return "answer queued";
       }
