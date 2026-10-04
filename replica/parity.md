@@ -1,5 +1,9 @@
 # Parity: REPTILE vs Greptile
 
+> **Update after /replica-build (2026-10-04):** feature parity is now **92.9**. Free plan and learning from human review
+> comments are done, and S15 no longer advertises the unbuilt CLI (top-five items 3–5). Every row still missing is a
+> *could*. Items 1–2 (first live run, installation squatting) are still open. Everything below is the original report.
+
 Date: 2026-10-04. Build: aae07c6 (after /replica-test). Original: Greptile, from public docs extracts only (see `recon.md`).
 
 ## Verdict: shippable on paper, not yet proven live

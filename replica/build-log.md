@@ -35,6 +35,18 @@ needs the backend.
 Extra pages not in the recon inventory: review detail (`/reviews/[id]`), fix-with-your-agent prompt pages (`/fix/...`),
 new organization, not-found and error boundaries, and `/design`.
 
+## Second pass: gaps from /replica-diff (2026-10-04)
+
+| ID | screen / area | status | missing | harder than expected |
+| --- | --- | --- | --- | --- |
+| S15 | API keys | done | the CLI itself (could) | — The page promised an `npm install -g reptile-cli` that doesn't exist; it now shows `curl` calls to the two read endpoints the keys actually work with |
+| S13 | Billing: Free plan | done | — | "free" already meant "canceled subscription" in the Stripe mapping; Free is `plan = free` with `billing_status = none`, so a canceled Team org stays paused until an admin picks Free. New states: trial ended / canceled with "Continue on Free" (one-person orgs only), Free active, free allowance used |
+| S12 | Members on Free | done | — | invites and invite acceptance are refused on Free (one person); the page says why instead of showing Invite |
+| — | Learning from review comments | done | — | `feedback.finding_id` was required; human comments belong to a PR and a file, not a finding (migration 0005). Only people with write access, 20+ characters, no bots, deduplicated by comment id |
+
+Checks after this pass: 93 vitest, e2e 96 passed + 3 expected failures (open S3s), 56/56 screen states, 4 flow scripts.
+Parity: 91.2 → 92.9 (both remaining *should* rows done; everything left is *could*).
+
 ## Bigger than it looked
 
 - **The product is the backend.** Almost every must-have is "partial": the screens and the pure review logic are done, but

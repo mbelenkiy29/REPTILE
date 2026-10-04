@@ -31,13 +31,13 @@ Copy/download dashboard settings as JSON,config,should,yes,yes,S07 copy and down
 Config validator,config,should,yes,yes,S16 live validation with line numbers and effective settings
 Read CLAUDE.md / AGENTS.md / .cursorrules as rules,rules,should,yes,yes,read at the PR head and sent as repository guides
 Learn from thumbs up/down reactions,learning,should,yes,yes,reactions polled every 15 min (GitHub has no reaction webhook); 👎 dismisses; nightly job proposes rules for an admin to accept
-Infer rules from human review comments,learning,should,yes,partial,replies under REPTILE's comments feed learning; other human review comments are not ingested yet
+Infer rules from human review comments,learning,should,yes,yes,"the team's own inline review comments (write access only), replies and 👎 feed the nightly learn-rules job; suggestions need an admin"
 Sequence diagram (mermaid) in summary,review,should,yes,yes,
 What we checked section when no issues,review,should,yes,yes,
 Analytics: PRs reviewed / addressed rate / bugs caught / merge time / reaction ratio,analytics,should,yes,yes,"S10 tiles, charts and per-repo table computed from review data (seed data until backend)"
 Members and Admin/Member roles,team,should,yes,yes,"invite emails, accept page (email must match), last-admin guards, seat sync to Stripe"
 Billing: per-seat plan + included reviews + metered overage (Stripe),billing,should,yes,yes,"Checkout, Customer Portal (one-click cancel), webhooks, Meter events; test mode (needs your keys; see backend.md)"
-Free tier and 14-day trial,billing,should,yes,partial,14-day trial with reminder email and a pause when it ends; no free tier for open source yet
+Free tier and 14-day trial,billing,should,yes,yes,"14-day trial with reminder and pause; then Free (one person, 50 reviews a month, no card) or Team; S13 Continue on Free"
 Review history list,repos,should,yes,yes,"S11 filters, search, pages, auto-refresh"
 Fix with your Agent deep link per comment + Fix All,review,could,yes,partial,each comment and the summary link to prompt pages (sign-in required); no deep links into specific agents
 Auto-generated per-repo knowledge base (editable),knowledge,could,yes,partial,view and admin editing; generation from the code not built
@@ -49,7 +49,7 @@ GitHub Enterprise Server support,integrations,could,yes,no,shown as coming soon 
 Jira/Linear ticket context in reviews,integrations,could,yes,no,S14 explains that the OAuth app isn't configured; OAuth flows not built
 Slack Q&A over codebase,integrations,could,yes,no,same as above
 CLI local review (review -b / --resume),cli,could,yes,no,read API exists; the CLI and a diff-review endpoint are not built
-Public API + API keys + MCP server,api,could,yes,partial,"API keys + GET /api/v1/repositories and /api/v1/reviews/:id; no write endpoints, CLI or MCP"
+Public API + API keys + MCP server,api,could,yes,partial,"API keys + GET /api/v1/repositories and /api/v1/reviews/:id (S15 shows the calls); no write endpoints, CLI or MCP"
 Their review models prompts and eval data,review,skip,yes,skip,proprietary; build our own pipeline on a public LLM API
 GitHub's App install and OAuth consent pages,onboarding,skip,yes,skip,owned by GitHub; we register our own app
 Customer logos benchmarks mascot and T-Rex tier name,brand,skip,yes,skip,their brand and claims
