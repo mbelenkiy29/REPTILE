@@ -257,7 +257,8 @@ Ranked. These came from a code read; none was confirmed in this environment.
    returns, so check it with two GitHub accounts. Likely fix: require org admin (`GET /user/memberships/orgs/{org}` role
    `admin`, or the account login equals the user for personal installs), or bind linking to the `installation_id` from the
    state-verified setup callback.
-2. **Account deletion doesn't update Stripe seats** (`deleteAccount` skips `updateSeats`), and a failed subscription cancel is
+2. **Fixed in /replica-deploy (2026-10-04):** a failed cancel now stops the deletion, and orgs that keep members get
+   their seats lowered (`cancelSubscriptions`, `updateSeats`; 2 tests in `billing.test.ts`). Was: **Account deletion doesn't update Stripe seats** (`deleteAccount` skips `updateSeats`), and a failed subscription cancel is
    swallowed while the org is deleted anyway, so a customer could keep being charged with no org to cancel from. Needs Stripe
    test mode.
 3. A review failed by the stale reaper (BUG-008) leaves its GitHub check run "in progress".

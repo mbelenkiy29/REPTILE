@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "tsx db/migrate.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "tokens": "node ../replica/design/build-tokens.mjs src/styles",
@@ -60,5 +61,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

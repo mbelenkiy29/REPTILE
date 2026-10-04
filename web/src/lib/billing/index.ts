@@ -99,6 +99,22 @@ export async function listInvoices(customerId: string) {
   }
 }
 
+/**
+ * Cancel subscriptions before their orgs are deleted. One that's already gone is fine; any other failure throws, so the
+ * caller deletes nothing while a subscription could keep charging with no org left to cancel it from.
+ */
+export async function cancelSubscriptions(subscriptionIds: string[]) {
+  for (const id of subscriptionIds) {
+    try {
+      await stripe().subscriptions.cancel(id);
+    } catch (e) {
+      if ((e as { code?: string }).code === "resource_missing") continue;
+      console.error("[billing] cancelling a subscription failed", id, e);
+      throw new Error("We couldn't cancel the subscription, so nothing was deleted. Try again in a minute, or cancel it from Billing first.");
+    }
+  }
+}
+
 /** Keep the subscription's seat quantity equal to the member count. */
 export async function updateSeats(orgId: string) {
   if (!billingConfigured()) return;

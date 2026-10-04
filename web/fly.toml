@@ -1,0 +1,25 @@
+# Fly.io config for the worker (the web app runs on Vercel). See replica/deploy.md.
+# Create the app and two volumes first:  fly apps create countersign-worker
+#                                        fly volumes create work --size 20 --count 2 --region iad
+app = "countersign-worker"
+primary_region = "iad"
+kill_timeout = 75  # the worker stops gracefully within 60s (boss.stop)
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[deploy]
+  # Migrations run on every deploy, before the new machines start (locked, so a parallel web deploy is safe).
+  release_command = "npx tsx db/migrate.ts"
+
+[env]
+  NODE_ENV = "production"
+  TMPDIR = "/data"  # repository clones go on the volume, not the small root disk
+
+[[mounts]]
+  source = "work"
+  destination = "/data"
+
+[[vm]]
+  memory = "4gb"
+  cpus = 2

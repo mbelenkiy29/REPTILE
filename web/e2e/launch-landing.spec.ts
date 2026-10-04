@@ -38,6 +38,15 @@ test.describe("landing page", () => {
     await expect(page).toHaveURL(/\/repos/);
   });
 
+  test("L-6 link previews get our own Open Graph image, reachable without signing in", async ({ page, request }) => {
+    await page.goto("/");
+    const og = await page.locator('meta[property="og:image"]').getAttribute("content");
+    expect(og).toMatch(/opengraph-image/);
+    const res = await request.get(new URL(og!).pathname + new URL(og!).search);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toContain("image/png");
+  });
+
   test("L-5 fits a phone without sideways scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
     await page.goto("/");

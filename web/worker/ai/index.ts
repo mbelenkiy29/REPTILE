@@ -2,10 +2,19 @@ import type { Embedder, ReviewModel } from "./types";
 
 const g = globalThis as unknown as { __countersignModel?: ReviewModel; __countersignEmbedder?: Embedder };
 
+/** REVIEW_FAKE_AI=1 is for keyless local runs only. On a public URL it would post made-up reviews, so refuse loudly. */
+function fakeAi() {
+  if (process.env.REVIEW_FAKE_AI !== "1") return false;
+  if (!/^http:\/\/(localhost|127\.0\.0\.1)/.test(process.env.APP_URL ?? "")) {
+    throw new Error("REVIEW_FAKE_AI is set but APP_URL isn't localhost. Remove REVIEW_FAKE_AI from this environment.");
+  }
+  return true;
+}
+
 /** Claude unless a test (or a keyless local run with REVIEW_FAKE_AI=1) swaps in the fake. */
 export async function reviewModel(): Promise<ReviewModel> {
   if (g.__countersignModel) return g.__countersignModel;
-  if (process.env.REVIEW_FAKE_AI === "1") {
+  if (fakeAi()) {
     const { FakeReviewModel } = await import("./fake");
     return (g.__countersignModel = new FakeReviewModel());
   }
@@ -15,7 +24,7 @@ export async function reviewModel(): Promise<ReviewModel> {
 
 export async function embedder(): Promise<Embedder> {
   if (g.__countersignEmbedder) return g.__countersignEmbedder;
-  if (process.env.REVIEW_FAKE_AI === "1") {
+  if (fakeAi()) {
     const { FakeEmbedder } = await import("./fake");
     return (g.__countersignEmbedder = new FakeEmbedder());
   }

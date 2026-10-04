@@ -22,7 +22,7 @@ The network check still failed: every review host got a 403 from the egress prox
 apply. Reddit was read through the XPOZ connector instead (its CSV export is over the free plan's monthly limit, so
 thread text was copied from tool output; post bodies were parsed from the saved result file). `/replica-entrepreneur`
 ran on 30 Reddit rows from one source, so every theme is thin. Re-run it with G2, Hacker News and Trustpilot when the
-network allows them, before the brand and launch copy is final. `/replica-brand` and `/replica-launch` then ran in the same session (see `replica/brand.md`, `replica/launch/`). Next: `/replica-deploy`, after the gates in `replica/launch/launch-plan.md` §0.
+network allows them, before the brand and launch copy is final. `/replica-brand` and `/replica-launch` then ran in the same session (see `replica/brand.md`, `replica/launch/`). `/replica-deploy` ran its preflight (see `replica/deploy.md`): not live; clear the failures listed there, then give the go.
 
 ## Where we stopped before that: /replica-entrepreneur, step 1 (collect)
 
@@ -72,7 +72,7 @@ three angles with one recommended), new rows in `replica/features.csv` with `ori
 | entrepreneur | done on a **thin sample**: 30 Reddit posts/comments via the XPOZ connector, 1 source; recommended angle A (predictable bills), fixes F1-F8 | `replica/reviews.csv`, `replica/feedback.md`, `replica/fixes.md`, `features.csv` (8 rows with `original = no`) |
 | brand | done: renamed to **Countersign** (REPTILE was a Greptile twin), ink-violet accent (0 AA failures), interim mark, voice, sweep clean on `web/`; trademark/domain/handle checks still **to run** | `replica/brand.md`, `replica/brand.json` |
 | launch | done: **flat pricing** built (Team $24/seat, $20 annual, 50 reviews per seat pooled, pause instead of overage, 80% email; metering removed), public landing page at `/`, listing lint clean, launch plan with pre-launch gates | `replica/launch/` (`pricing.md`, `landing.md`, `listing.json`, `launch-plan.md`), `web/src/app/page.tsx` |
-| deploy | not started; first clear the gates in `launch/launch-plan.md` §0 (privacy and terms pages, error tracking, analytics, margin check) | |
+| deploy | **preflight run, not live** (no go yet): 113/113 e2e, 98/98 unit, parity 22/22, build ok, listing ok; **fails**: whole-repo sweep (only this file names the original), no privacy/terms pages, installation squatting unverified, no error tracking. Deploy config added (vercel-build migrates, fly.toml + Dockerfile.worker, locked migrations, /api/health) | `replica/deploy.md` |
 
 Bugs: 17 found, 14 fixed. No open S1 or S2. Three S3s are open (BUG-002 offline save loses input, BUG-013 fix links 404
 while another org is active, BUG-014 install from GitHub's own page ends on an error), each with a `test.fail` repro.
@@ -116,11 +116,11 @@ Don't switch Postgres to `trust` auth; the safety check refused it last time. Us
 Checks (from `web/`, with `set -a; . ./.env.local; set +a` for vitest):
 
 ```bash
-npx vitest run                     # 94 tests (unit, data layer, webhooks, worker pipeline)
+npx vitest run                     # 98 tests (unit, data layer, webhooks, worker pipeline)
 npx tsc --noEmit && npx eslint --quiet
 npx next build && SHOW_DESIGN=1 GITHUB_WEBHOOK_SECRET=e2e-webhook-secret npx next start -p 3100   # background
 npm run worker                     # background
-npm run e2e                        # 111 cases, all pass (3 of them are test.fail repros of the open S3s)
+npm run e2e                        # 113 cases, all pass (3 of them are test.fail repros of the open S3s)
 node scripts/screens.mjs           # 56 screen states; rewrites replica/clone-screens: revert unrelated ones before committing
 ```
 

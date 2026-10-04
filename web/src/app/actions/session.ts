@@ -92,14 +92,24 @@ export async function deleteAccount(confirmEmail: string) {
     else if (m.role === "admin" && !others.some((o) => o.role === "admin")) blocking.push(m.name);
   }
   if (blocking.length) return { ok: false as const, error: `Make someone else an admin of ${blocking.join(", ")} first, or remove its other members.` };
-  if (toDelete.some((o) => o.sub)) {
-    const { stripe } = await import("@/lib/billing");
-    for (const o of toDelete) if (o.sub) await stripe().subscriptions.cancel(o.sub).catch(() => undefined);
+  const subs = toDelete.flatMap((o) => (o.sub ? [o.sub] : []));
+  if (subs.length) {
+    const { cancelSubscriptions } = await import("@/lib/billing");
+    try {
+      await cancelSubscriptions(subs);
+    } catch (e) {
+      return { ok: false as const, error: (e as Error).message };
+    }
   }
   await db.transaction(async (tx) => {
     for (const o of toDelete) await tx.delete(s.organizations).where(eq(s.organizations.id, o.id));
     await tx.delete(s.users).where(eq(s.users.id, user.id));
   });
+  // Orgs that keep their other members now have one seat fewer.
+  const { updateSeats } = await import("@/lib/billing");
+  for (const m of mine) {
+    if (!toDelete.some((o) => o.id === m.orgId)) await updateSeats(m.orgId).catch((e) => console.error("[billing] seat update after account deletion failed", m.orgId, e));
+  }
   const c = await cookies();
   c.delete(ORG_COOKIE);
   for (const name of ["authjs.session-token", "__Secure-authjs.session-token"]) c.delete(name);

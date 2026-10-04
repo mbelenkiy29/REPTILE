@@ -1,0 +1,1 @@
+Countersign: a second reviewer on every pull request. One price per seat, no per-review charges.

@@ -1,6 +1,6 @@
 // Stripe webhooks: signature check, idempotency, and plan status driven only by events.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import Stripe from "stripe";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -13,7 +13,7 @@ describe.skipIf(!url)("Stripe billing", async () => {
   const { closeDb, db, schema: s } = await import("@/db");
   const { seedId } = await import("@/db/ids");
   const { setJobSender } = await import("@/lib/jobs");
-  const { allowance, applyStripeEvent, handleStripeWebhook, recordUsage, SignatureError } = await import("./index");
+  const { allowance, applyStripeEvent, cancelSubscriptions, handleStripeWebhook, recordUsage, SignatureError, stripe, updateSeats } = await import("./index");
   const { createOrganization } = await import("@/lib/data");
   const org = seedId("o_side");
   const jobs: { name: string; data: unknown }[] = [];
@@ -83,6 +83,43 @@ describe.skipIf(!url)("Stripe billing", async () => {
     expect(await allowance(paid)).toEqual({ used: 3, included: 50, seats: 1 });
   });
 
+  it("account deletion: a failed cancel stops the deletion, an already-gone subscription doesn't", async () => {
+    const subs = stripe().subscriptions as unknown as { cancel: (id: string) => Promise<object> };
+    const real = subs.cancel;
+    try {
+      subs.cancel = async (id) => {
+        if (id === "sub_gone") throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
+        if (id === "sub_down") throw Object.assign(new Error("Stripe is unavailable"), { code: "api_error" });
+        return {};
+      };
+      await expect(cancelSubscriptions(["sub_ok", "sub_gone"])).resolves.toBeUndefined();
+      await expect(cancelSubscriptions(["sub_down"])).rejects.toThrow(/nothing was deleted/);
+    } finally { subs.cancel = real; }
+  });
+
+  it("seats follow members: removing one lowers the subscription quantity", async () => {
+    process.env.STRIPE_PRICE_SEAT = "price_seat_month";
+    const sc = stripe() as unknown as {
+      subscriptions: { retrieve: (id: string) => Promise<object> };
+      subscriptionItems: { update: (id: string, p: { quantity: number }) => Promise<object> };
+    };
+    const [realRetrieve, realUpdate] = [sc.subscriptions.retrieve, sc.subscriptionItems.update];
+    const updates: { id: string; quantity: number }[] = [];
+    const acme = seedId("o_acme");
+    try {
+      const [{ n }] = await db.execute<{ n: number }>(sqlCount(acme));
+      sc.subscriptions.retrieve = async () => ({ items: { data: [{ id: "si_1", quantity: Number(n) + 1, price: { id: "price_seat_month" } }] } });
+      sc.subscriptionItems.update = async (id, p) => { updates.push({ id, quantity: p.quantity }); return {}; };
+      await db.update(s.organizations).set({ stripeSubscriptionId: "sub_acme", billingStatus: "active" }).where(eq(s.organizations.id, acme));
+      await updateSeats(acme);
+      expect(updates).toEqual([{ id: "si_1", quantity: Number(n) }]);
+    } finally {
+      sc.subscriptions.retrieve = realRetrieve; sc.subscriptionItems.update = realUpdate;
+      await db.update(s.organizations).set({ stripeSubscriptionId: null }).where(eq(s.organizations.id, acme));
+      delete process.env.STRIPE_PRICE_SEAT;
+    }
+  });
+
   /** A completed review on a throwaway PR in the given org (usage rows reference reviews). */
   async function reviewRow(orgId: string, n: number) {
     let [inst] = await db.select().from(s.installations).where(eq(s.installations.orgId, orgId));
@@ -91,5 +128,9 @@ describe.skipIf(!url)("Stripe billing", async () => {
     if (!repo) [repo] = await db.insert(s.repositories).values({ orgId, installationId: inst.id, providerRepoId: 90_000_000 + Math.floor(Math.random() * 1e6), fullName: "trialco/app", defaultBranch: "main" }).returning();
     const [pr] = await db.insert(s.pullRequests).values({ orgId, repoId: repo.id, number: 1000 + n, title: `PR ${n}`, authorLogin: "dev", baseBranch: "main", headSha: `sha${n}`, labels: [], url: "https://example.test", openedAt: new Date().toISOString() }).returning();
     return { orgId, pullRequestId: pr.id, headSha: `sha${n}`, trigger: "manual" as const, status: "completed" as const, filesReviewed: [], checked: [] };
+  }
+
+  function sqlCount(orgId: string) {
+    return sql`select count(*)::int as n from memberships where org_id = ${orgId}`;
   }
 });

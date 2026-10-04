@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // Absolute URLs for the Open Graph image and canonical links (APP_URL is the production origin when deployed).
+  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
   title: { default: "Countersign", template: "%s · Countersign" },
   description: "A second reviewer on every pull request, reading your whole codebase.",
 };

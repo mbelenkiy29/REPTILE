@@ -8,6 +8,9 @@ export async function migrate(url = process.env.DATABASE_URL, log = console.log)
   if (!url) throw new Error("DATABASE_URL is not set");
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
+    // The web deploy (vercel-build) and the worker deploy (Fly release_command) both migrate; the lock makes the second
+    // one wait for the first, then find nothing left to apply.
+    await sql`select pg_advisory_lock(727274)`;
     await sql`create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())`;
     const done = new Set((await sql<{ name: string }[]>`select name from schema_migrations`).map((r) => r.name));
     const dir = join(import.meta.dirname, "migrations");
@@ -21,6 +24,7 @@ export async function migrate(url = process.env.DATABASE_URL, log = console.log)
       log(`applied ${file}`);
     }
   } finally {
+    await sql`select pg_advisory_unlock(727274)`.catch(() => {});
     await sql.end();
   }
 }
