@@ -1,5 +1,5 @@
 // In-memory GitHub for tests and for local development without a GitHub App (GITHUB_FAKE=1 with dev login).
-// Records what REPTILE would post so tests can assert on it.
+// Records what Countersign would post so tests can assert on it.
 import type { GitHost, PrFile, PrInfo, ReviewCommentInput, UserInstallation } from "./types";
 
 export interface FakePr extends PrInfo { files: PrFile[]; repo: string }

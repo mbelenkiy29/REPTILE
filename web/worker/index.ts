@@ -1,4 +1,4 @@
-// The REPTILE worker: one long-running process (Fly.io). Processes the pg-boss queues and runs the schedules.
+// The Countersign worker: one long-running process (Fly.io). Processes the pg-boss queues and runs the schedules.
 // Usage: npx tsx worker/index.ts   (needs DATABASE_URL and the provider keys in the environment)
 import { db, schema as s } from "@/db";
 import { DEAD_LETTER, getBoss, QUEUES, type JobData, type QueueName } from "@/lib/jobs";

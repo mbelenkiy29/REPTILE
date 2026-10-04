@@ -153,7 +153,7 @@ run("data layer", async () => {
       expect(await data.authenticateApiKey(secret)).toEqual({ orgId: ACME, keyId: key.id });
       await data.revokeApiKey(jordanAcme, key.id);
       expect(await data.authenticateApiKey(secret)).toBeNull();
-      expect(await data.authenticateApiKey("rpt_" + "x".repeat(24))).toBeNull();
+      expect(await data.authenticateApiKey("csk_" + "x".repeat(24))).toBeNull();
     });
 
     it("repo settings override and reset", async () => {

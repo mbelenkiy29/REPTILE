@@ -43,9 +43,9 @@ export function chunkFile(path: string, text: string): Chunk[] {
   return out;
 }
 
-/** Clone URL: GitHub with an installation token, or REPTILE_GIT_BASE (a local file:// base) in tests and fake mode. */
+/** Clone URL: GitHub with an installation token, or COUNTERSIGN_GIT_BASE (a local file:// base) in tests and fake mode. */
 function cloneUrl(fullName: string, token: string) {
-  const base = process.env.REPTILE_GIT_BASE;
+  const base = process.env.COUNTERSIGN_GIT_BASE;
   if (base) return `${base.replace(/\/$/, "")}/${fullName}.git`;
   return `https://x-access-token:${token}@github.com/${fullName}.git`;
 }
@@ -57,7 +57,7 @@ export async function indexRepo(repoId: string) {
   const [cfg] = await db.select({ ignore: s.reviewConfigs.ignorePatterns }).from(s.reviewConfigs).where(and(eq(s.reviewConfigs.orgId, repo.orgId), eq(s.reviewConfigs.repoId, repo.id)));
   const setStatus = (v: Partial<typeof s.repositories.$inferInsert>) => db.update(s.repositories).set({ ...v, updatedAt: new Date().toISOString() }).where(eq(s.repositories.id, repoId));
 
-  const dir = await mkdtemp(join(tmpdir(), "reptile-index-"));
+  const dir = await mkdtemp(join(tmpdir(), "countersign-index-"));
   try {
     await setStatus({ indexStatus: "cloning", indexError: null });
     const token = await (await gitHost()).installationToken(inst.externalInstallationId);

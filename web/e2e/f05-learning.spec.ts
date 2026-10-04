@@ -1,4 +1,4 @@
-// F05 The team gives feedback and REPTILE learns: the team's own review comments (second pass, after /replica-build).
+// F05 The team gives feedback and Countersign learns: the team's own review comments (second pass, after /replica-build).
 // Webhooks go to the running server, signed with the e2e secret it was started with.
 import { createHmac } from "node:crypto";
 import { test, expect, login, seedId, expectAccessible } from "./fixtures";
@@ -41,7 +41,7 @@ test.describe("F05 learning from the team's review comments", () => {
     expect((await sql`select count(*)::int as n from feedback where provider_id between ${base} and ${base + 2}`)[0].n).toBe(0);
   });
 
-  test("F05-E4 a comment on a PR REPTILE hasn't seen yet is skipped, not an error", async ({ request }) => {
+  test("F05-E4 a comment on a PR Countersign hasn't seen yet is skipped, not an error", async ({ request }) => {
     const r = await reviewComment(request, { id: 899_999, body: "Please keep amounts in cents everywhere in this module.", pr: 99_999 });
     expect(r).toEqual({ status: 202, result: "pull request unknown" });
   });

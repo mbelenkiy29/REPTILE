@@ -6,8 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "REPTILE", template: "%s · REPTILE" },
-  description: "AI code review for pull requests, with your whole codebase as context.",
+  title: { default: "Countersign", template: "%s · Countersign" },
+  description: "A second reviewer on every pull request, reading your whole codebase.",
 };
 
 // Runs before paint so a saved theme never flashes the wrong one.

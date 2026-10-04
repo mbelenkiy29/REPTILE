@@ -78,7 +78,7 @@ export default async function RepoPage({ params, searchParams }: PageProps<"/rep
             <StatTile label="Reviews" value={formatNumber(repo.reviewCount)} />
             <StatTile label="Last review" value={<span className="text-lg">{relativeTime(repo.lastReviewAt)}</span>} />
           </div>
-          <Card title="Review pull requests" description="When off, new pull requests here aren't reviewed automatically. Commenting @reptile still works.">
+          <Card title="Review pull requests" description="When off, new pull requests here aren't reviewed automatically. Commenting @countersign still works.">
             <label className="flex items-center gap-3">
               <RepoToggle id={repo.id} name={repo.fullName} enabled={repo.reviewEnabled} disabled={!isAdmin} />
               <span className="text-base text-fg">{repo.reviewEnabled ? "On" : "Off"}</span>

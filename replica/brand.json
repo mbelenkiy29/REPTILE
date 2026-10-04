@@ -1,0 +1,9 @@
+{
+  "_about": "Countersign brand file. avoid/domains/colors are what must never ship (used by sweep.py, listing.py and /replica-deploy). Reptile is the discarded working name, kept here so it cannot creep back.",
+  "name": "Countersign",
+  "avoid": ["Greptile", "Greploop", "Reptile"],
+  "domains": ["greptile.com"],
+  "colors": [],
+  "_colors_todo": "Greptile's brand hexes are not confirmed: greptile.com/design (its public brand page) is blocked from this environment. Copy its green and other brand colours from that page into colors, then re-run the sweep.",
+  "palette": {"accent": "#5b2fc4", "accent-hover": "#4a249f", "accent-soft": "#f2edfc", "accent-dark": "#b49cff"}
+}

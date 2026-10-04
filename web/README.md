@@ -1,4 +1,4 @@
-# REPTILE web app and worker
+# Countersign web app and worker
 
 Next.js 16 (App Router) + Tailwind v4 + Radix for the dashboard; Postgres (Drizzle, pgvector) for data, jobs and code
 embeddings; a pg-boss worker (`worker/`) that reviews pull requests with Claude. Setup, keys and the security checklist:

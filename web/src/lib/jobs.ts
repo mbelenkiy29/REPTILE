@@ -29,10 +29,10 @@ export interface JobData {
 
 type Sender = <Q extends QueueName>(name: Q, data: JobData[Q], opts?: SendOptions) => Promise<string | null>;
 
-const g = globalThis as unknown as { __reptileBoss?: Promise<PgBoss>; __reptileSender?: Sender };
+const g = globalThis as unknown as { __countersignBoss?: Promise<PgBoss>; __countersignSender?: Sender };
 
 export async function getBoss(opts: { worker?: boolean } = {}): Promise<PgBoss> {
-  g.__reptileBoss ??= (async () => {
+  g.__countersignBoss ??= (async () => {
     const boss = new PgBoss({
       connectionString: process.env.DATABASE_URL,
       // Only the worker supervises queues and runs cron schedules.
@@ -44,7 +44,7 @@ export async function getBoss(opts: { worker?: boolean } = {}): Promise<PgBoss> 
     await ensureQueues(boss);
     return boss;
   })();
-  return g.__reptileBoss;
+  return g.__countersignBoss;
 }
 
 export async function ensureQueues(boss: PgBoss) {
@@ -57,11 +57,11 @@ export async function ensureQueues(boss: PgBoss) {
 
 /** Queue a job. Tests can swap the sender with setJobSender to capture jobs instead. */
 export const enqueue: Sender = async (name, data, opts) => {
-  if (g.__reptileSender) return g.__reptileSender(name, data, opts);
+  if (g.__countersignSender) return g.__countersignSender(name, data, opts);
   const boss = await getBoss();
   return boss.send(name, data as object, opts);
 };
 
 export function setJobSender(s: Sender | undefined) {
-  g.__reptileSender = s;
+  g.__countersignSender = s;
 }

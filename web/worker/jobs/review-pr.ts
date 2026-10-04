@@ -76,7 +76,7 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
       gh.listPullRequestFiles(instId, repo.fullName, pr.number),
     ]);
     const cfg = await loadPrConfig(gh, instId, repo, review.headSha, files.map((f) => f.filename));
-    // Ignore patterns were applied per file above (the nearest .reptile/ config wins), so don't apply the repo's again.
+    // Ignore patterns were applied per file above (the nearest .countersign/ config wins), so don't apply the repo's again.
     const decision = shouldReview({ ...cfg.repo, ignorePatterns: [] }, {
       isDraft: pr.isDraft, authorLogin: pr.authorLogin, baseBranch: pr.baseBranch, labels: pr.labels, trigger: review.trigger,
       changedFiles: files.filter((f) => f.status !== "removed").map((f) => f.filename).filter((p) => !matchesAny(cfg.forFile(p).ignorePatterns, p)),
@@ -87,7 +87,7 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
     if (!reviewable.length) return await finishSkipped("Only generated, binary or very large files changed");
 
     // A retry keeps the check run its first attempt started, so none is left "in progress" on the PR.
-    const checkRunId = review.checkRunId ?? await gh.createCheckRun(instId, repo.fullName, review.headSha, "REPTILE is reviewing");
+    const checkRunId = review.checkRunId ?? await gh.createCheckRun(instId, repo.fullName, review.headSha, "Countersign is reviewing");
     await db.update(s.reviews).set({ checkRunId, effectiveConfig: cfg.repo }).where(eq(s.reviews.id, reviewId));
 
     // Context.
@@ -206,11 +206,11 @@ export async function runReview(reviewId: string, attempt: { retryCount: number;
       throw e;
     }
     const message = e instanceof RefusedError
-      ? "The model declined to review this change. Comment @reptile to try again, or review it by hand."
-      : "The review couldn't finish. Comment @reptile on the pull request to try again; no credit was used.";
+      ? "The model declined to review this change. Comment @countersign to try again, or review it by hand."
+      : "The review couldn't finish and no credit was used. Comment @countersign on the pull request to try again.";
     await db.update(s.reviews).set({ status: "failed", error: message, completedAt: now(), updatedAt: now() }).where(eq(s.reviews.id, reviewId));
     const [r] = await db.select({ checkRunId: s.reviews.checkRunId }).from(s.reviews).where(eq(s.reviews.id, reviewId));
-    if (r?.checkRunId) await gh.completeCheckRun(instId, repo.fullName, r.checkRunId, { conclusion: "neutral", title: "REPTILE · review failed", summary: message }).catch(() => undefined);
+    if (r?.checkRunId) await gh.completeCheckRun(instId, repo.fullName, r.checkRunId, { conclusion: "neutral", title: "Countersign · review failed", summary: message }).catch(() => undefined);
     console.error(`[review-pr] ${reviewId} failed:`, e instanceof Error ? e.message : e);
     return { result: "failed" };
   }

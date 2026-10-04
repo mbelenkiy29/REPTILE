@@ -22,7 +22,7 @@ export default async function ApiKeysPage() {
     <>
       <PageHeader
         title="API keys"
-        description="For CI pipelines and scripts that read from the REPTILE API. A key can read everything in this organization, so keep it in a secret store."
+        description="For CI pipelines and scripts that read from the Countersign API. A key can read everything in this organization, so keep it in a secret store."
         actions={isAdmin && keys.length > 0 && <CreateKey />}
       />
       {!isAdmin && <div className="mb-4"><AdminOnlyNotice what="API keys" /></div>}
@@ -57,7 +57,7 @@ export default async function ApiKeysPage() {
         )}
         <section aria-labelledby="api" className="flex flex-col gap-3">
           <h2 id="api" className="text-md font-semibold text-fg">Call the API</h2>
-          <CodeBlock title="terminal" code={`export REPTILE_API_KEY=rpt_...\ncurl -H "Authorization: Bearer $REPTILE_API_KEY" ${base}/api/v1/repositories\ncurl -H "Authorization: Bearer $REPTILE_API_KEY" ${base}/api/v1/reviews/<review id>`} />
+          <CodeBlock title="terminal" code={`export COUNTERSIGN_API_KEY=csk_...\ncurl -H "Authorization: Bearer $COUNTERSIGN_API_KEY" ${base}/api/v1/repositories\ncurl -H "Authorization: Bearer $COUNTERSIGN_API_KEY" ${base}/api/v1/reviews/<review id>`} />
           <p className="text-sm text-muted">Keys are read-only: they list repositories with their index status and fetch a review with its findings. Up to 600 requests a minute per key.</p>
         </section>
       </div>

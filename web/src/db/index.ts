@@ -12,8 +12,8 @@ export type DB = ReturnType<typeof make>["db"];
 
 // One pool per process, created on first use (so builds and tests without a database don't connect),
 // and kept on globalThis so dev hot-reloads don't open new pools.
-const g = globalThis as unknown as { __reptileDb?: ReturnType<typeof make> };
-const inst = () => (g.__reptileDb ??= make());
+const g = globalThis as unknown as { __countersignDb?: ReturnType<typeof make> };
+const inst = () => (g.__countersignDb ??= make());
 
 export const db: DB = new Proxy({} as DB, {
   get(_, k) {
@@ -31,8 +31,8 @@ export const sql = () => inst().client;
 
 /** For tests and scripts: close the pool. */
 export async function closeDb() {
-  if (g.__reptileDb) await g.__reptileDb.client.end();
-  g.__reptileDb = undefined;
+  if (g.__countersignDb) await g.__countersignDb.client.end();
+  g.__countersignDb = undefined;
 }
 
 export { schema };

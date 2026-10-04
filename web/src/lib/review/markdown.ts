@@ -1,8 +1,8 @@
-// The markdown REPTILE posts on GitHub: the summary comment (S17), inline comments (S18)
+// The markdown Countersign posts on GitHub: the summary comment (S17), inline comments (S18)
 // and the check run title (S19). Pure functions so the worker and the dashboard preview share them.
 import type { Finding, Review, Severity } from "@/lib/data/types";
 
-export const SUMMARY_MARKER = "<!-- reptile:summary -->";
+export const SUMMARY_MARKER = "<!-- countersign:summary -->";
 const ORDER: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 const WORD: Record<Severity, string> = { P0: "Critical", P1: "High", P2: "Medium" };
 const TYPE: Record<Finding["type"], string> = { logic: "Logic", syntax: "Syntax", style: "Style", security: "Security" };
@@ -65,16 +65,16 @@ export function renderSummary({ review, findings, commentUrl, fixAllUrl, options
 export function renderInlineComment(f: Finding, fixUrl?: string): string {
   const parts = [`**${f.severity}** · ${TYPE[f.type]} · ${f.title}`, "", f.bodyMd];
   if (f.suggestion) parts.push("", "```suggestion", f.suggestion, "```");
-  parts.push("", [fixUrl ? `[Fix with your agent](${fixUrl})` : null, "👍 / 👎 to teach REPTILE"].filter(Boolean).join(" · "));
+  parts.push("", [fixUrl ? `[Fix with your agent](${fixUrl})` : null, "React 👍 or 👎 to tune future reviews"].filter(Boolean).join(" · "));
   return parts.join("\n");
 }
 
 export function checkRunTitle(findings: Finding[]): { title: string; conclusion: "success" | "neutral" } {
   const open = findings.filter((f) => f.status === "open");
   const p0 = open.filter((f) => f.severity === "P0").length;
-  if (!open.length) return { title: "REPTILE · no issues found", conclusion: "success" };
+  if (!open.length) return { title: "Countersign · no issues found", conclusion: "success" };
   return {
-    title: `REPTILE · ${open.length} finding${open.length === 1 ? "" : "s"}${p0 ? ` (${p0} critical)` : ""}`,
+    title: `Countersign · ${open.length} finding${open.length === 1 ? "" : "s"}${p0 ? ` (${p0} critical)` : ""}`,
     conclusion: p0 ? "neutral" : "success",
   };
 }

@@ -52,7 +52,7 @@ export default async function ReviewsPage({ searchParams }: PageProps<"/reviews"
           <EmptyState
             icon={History}
             title="No reviews yet"
-            body={repos.length ? "Open a pull request on a repository with reviews turned on. The first review shows up here within a few minutes." : "Connect GitHub and pick repositories first."}
+            body={repos.length ? "Open a pull request on a repository with reviews on. Its review appears here, usually within a few minutes." : "Connect GitHub and pick repositories first."}
             action={<Button asChild size="sm"><Link href={repos.length ? "/repos" : "/onboarding"}>{repos.length ? "See repositories" : "Connect GitHub"}</Link></Button>}
           />
         </div>

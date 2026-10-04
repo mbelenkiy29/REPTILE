@@ -13,5 +13,5 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   // Everything except the sign-in page, the design reference, invite links, API routes and static files.
-  matcher: ["/((?!login|design|invite|api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!login|design|invite|api|_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };

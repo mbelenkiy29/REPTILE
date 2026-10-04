@@ -75,7 +75,7 @@ export function ConfigForm({
       className="flex flex-col gap-6 pb-20"
     >
       <fieldset disabled={readOnly || pending} className="contents">
-        <Card title="How picky to be" description="Applies to every comment REPTILE posts.">
+        <Card title="How picky to be" description="Applies to every comment Countersign posts.">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-fg" id="strictness-label">Strictness</span>
@@ -112,7 +112,7 @@ export function ConfigForm({
           </div>
         </Card>
 
-        <Card title="Which pull requests get reviewed" description="Automatic reviews only. Commenting @reptile on a pull request always runs one.">
+        <Card title="Which pull requests get reviewed" description="Automatic reviews only. Commenting @countersign on a pull request always runs one.">
           <div className="flex flex-col gap-5">
             <label className="flex items-center gap-3">
               <Switch checked={c.reviewDrafts} onCheckedChange={(v) => set("reviewDrafts", v)} disabled={readOnly} aria-label="Review draft pull requests" />
@@ -165,7 +165,7 @@ export function ConfigForm({
 
       <Card
         title="As a file"
-        description={<>Commit this as <code className="font-mono">reptile.json</code> to set it per repository. Files win over the dashboard. <Link className="text-accent underline underline-offset-2" href="/settings/review/validate">Check a file</Link></>}
+        description={<>Commit this as <code className="font-mono">countersign.json</code> to set it per repository. Files win over the dashboard. <Link className="text-accent underline underline-offset-2" href="/settings/review/validate">Check a file</Link></>}
         actions={
           <>
             <CopyButton value={json} />
@@ -175,7 +175,7 @@ export function ConfigForm({
               type="button"
               onClick={() => {
                 const url = URL.createObjectURL(new Blob([json + "\n"], { type: "application/json" }));
-                const a = Object.assign(document.createElement("a"), { href: url, download: "reptile.json" });
+                const a = Object.assign(document.createElement("a"), { href: url, download: "countersign.json" });
                 a.click();
                 URL.revokeObjectURL(url);
               }}
@@ -185,7 +185,7 @@ export function ConfigForm({
           </>
         }
       >
-        <pre tabIndex={0} aria-label="reptile.json" className="max-h-64 overflow-auto rounded-md border bg-surface-sunken p-3 font-mono text-sm text-fg">{json}</pre>
+        <pre tabIndex={0} aria-label="countersign.json" className="max-h-64 overflow-auto rounded-md border bg-surface-sunken p-3 font-mono text-sm text-fg">{json}</pre>
       </Card>
 
       {!readOnly && (

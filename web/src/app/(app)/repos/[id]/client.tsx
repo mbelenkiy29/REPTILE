@@ -39,7 +39,7 @@ export function RepoSettings({ repoId, hasOverride, effective, readOnly }: { rep
     return (
       <div className="flex flex-col items-start gap-3 rounded-lg border bg-surface p-4">
         <p className="text-fg">This repository uses your organization&apos;s review settings.</p>
-        <p className="text-sm text-muted">A reptile.json in the repository still takes priority over both.</p>
+        <p className="text-sm text-muted">A countersign.json in the repository still takes priority over both.</p>
         {!readOnly && <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Customize for this repository</Button>}
       </div>
     );

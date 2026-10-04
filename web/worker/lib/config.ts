@@ -1,4 +1,4 @@
-// Effective review config for one PR: defaults < org < repo dashboard row < reptile.json < nearest .reptile/config.json.
+// Effective review config for one PR: defaults < org < repo dashboard row < countersign.json < nearest .countersign/config.json.
 import { and, eq, isNull, or } from "drizzle-orm";
 import picomatch from "picomatch";
 import { db, schema as s } from "@/db";
@@ -27,18 +27,18 @@ export async function loadPrConfig(gh: GitHost, installationId: number, repo: { 
     }
     return fileLayer(v.config);
   };
-  const base = mergeConfig(DEFAULT_CONFIG, rowToConfig(rows.find((r) => r.repoId === null)), rowToConfig(rows.find((r) => r.repoId === repo.id)), await read("reptile.json"));
+  const base = mergeConfig(DEFAULT_CONFIG, rowToConfig(rows.find((r) => r.repoId === null)), rowToConfig(rows.find((r) => r.repoId === repo.id)), await read("countersign.json"));
 
-  // .reptile/config.json in any directory that holds a changed file, or one of its parents (capped).
+  // .countersign/config.json in any directory that holds a changed file, or one of its parents (capped).
   const dirs = new Set<string>();
   for (const p of paths) {
     const parts = p.split("/").slice(0, -1);
     for (let i = 1; i <= parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
   }
   const dirLayers = new Map<string, Partial<ReviewConfig>>();
-  const rootLayer = await read(".reptile/config.json");
+  const rootLayer = await read(".countersign/config.json");
   for (const d of [...dirs].sort((a, b) => a.length - b.length).slice(0, 40)) {
-    const layer = await read(`${d}/.reptile/config.json`);
+    const layer = await read(`${d}/.countersign/config.json`);
     if (layer) dirLayers.set(d, layer);
   }
   const repoCfg = mergeConfig(base, rootLayer);

@@ -22,8 +22,8 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
       <Steps current={0} />
       <h1 className="text-xl text-fg">Connect {ctx.org.name} to a code host</h1>
       <p className="mt-1 max-w-xl text-muted">
-        REPTILE installs as an app on your GitHub account or organization. You pick which repositories it can read; it
-        comments on pull requests and never pushes code.
+        Countersign installs as a GitHub App. You choose which repositories it can read. It comments on pull requests and
+        never pushes code.
       </p>
 
       <div className="mt-6 flex flex-col gap-4">

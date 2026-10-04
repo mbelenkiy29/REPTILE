@@ -7,7 +7,7 @@ const url = process.env.TEST_DATABASE_URL;
 if (url) process.env.DATABASE_URL = url;
 process.env.GITHUB_WEBHOOK_SECRET = "test-webhook-secret";
 process.env.AUTH_SECRET = "test-auth-secret";
-process.env.GITHUB_APP_SLUG = "reptile";
+process.env.GITHUB_APP_SLUG = "countersign";
 
 describe.skipIf(!url)("GitHub App", async () => {
   const { seed } = await import("../../../db/seed");
@@ -101,18 +101,18 @@ describe.skipIf(!url)("GitHub App", async () => {
     const comment = (body: string, user = { login: "lenaf", type: "User" }) => ({
       action: "created", installation: { id: CONTOSO_INSTALL }, repository: { id: STOREFRONT }, issue: { number: 7, pull_request: {} }, comment: { body, user, author_association: "MEMBER" },
     });
-    it("@reptile on a PR queues a review; other comments and bots don't", async () => {
+    it("@countersign on a PR queues a review; other comments and bots don't", async () => {
       // PR 7 was merged above; reopen it (mentions on closed PRs are ignored, BUG-007), and finish its review
       // so the mention isn't blocked by the queued one.
       await deliver("pull_request", prEvent("reopened", pr(7, "bbb222")));
       await db.update(s.reviews).set({ status: "completed" }).where(eq(s.reviews.headSha, "bbb222"));
       expect((await deliver("issue_comment", comment("looks good"))).json.result).toBe("ignored");
-      expect((await deliver("issue_comment", comment("@reptile please look", { login: "x[bot]", type: "Bot" }))).json.result).toBe("ignored");
-      expect((await deliver("issue_comment", comment("@reptile please look again"))).json.result).toBe("review queued");
+      expect((await deliver("issue_comment", comment("@countersign please look", { login: "x[bot]", type: "Bot" }))).json.result).toBe("ignored");
+      expect((await deliver("issue_comment", comment("@countersign please look again"))).json.result).toBe("review queued");
     });
     it("a mention on a PR opened before linking fetches it first", async () => {
       gh.prs.set("contoso/storefront#42", { ...{ number: 42, title: "Old PR", body: null, authorLogin: "lenaf", baseBranch: "main", baseSha: "b0", headSha: "eee", isDraft: false, labels: [], state: "open", merged: false, url: "https://x/42" }, files: [], repo: "contoso/storefront" });
-      const c = { ...comment("@reptile"), issue: { number: 42, pull_request: {} } };
+      const c = { ...comment("@countersign"), issue: { number: 42, pull_request: {} } };
       expect((await deliver("issue_comment", c)).json.result).toBe("review queued");
     });
     it("a reply under our comment is recorded, and a mention asks for an answer", async () => {
@@ -120,7 +120,7 @@ describe.skipIf(!url)("GitHub App", async () => {
       await db.update(s.findings).set({ providerCommentId: 555 }).where(eq(s.findings.id, f.id));
       const reply = (body: string) => ({ action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 556, in_reply_to_id: 555, body, user: { login: "priya-r", type: "User" }, author_association: "MEMBER" } });
       expect((await deliver("pull_request_review_comment", reply("good catch"))).json.result).toBe("reply recorded");
-      expect((await deliver("pull_request_review_comment", reply("@reptile why is this a problem?"))).json.result).toBe("answer queued");
+      expect((await deliver("pull_request_review_comment", reply("@countersign why is this a problem?"))).json.result).toBe("answer queued");
       expect(jobs.at(-1)?.name).toBe("answer-thread");
       await deliver("pull_request_review_thread", { action: "resolved", thread: { comments: [{ id: 555 }] } });
       const [after] = await db.select().from(s.findings).where(eq(s.findings.id, f.id));
@@ -172,7 +172,7 @@ describe.skipIf(!url)("GitHub App", async () => {
     const ev = (action: string, p: object) => prEvent(action, p, API, ACME_INSTALL);
     const mention = (number: number, association: string, repoId = API, inst = ACME_INSTALL) => ({
       action: "created", installation: { id: inst }, repository: { id: repoId }, issue: { number, pull_request: {} },
-      comment: { body: "@reptile review this", user: { login: "someone", type: "User" }, author_association: association },
+      comment: { body: "@countersign review this", user: { login: "someone", type: "User" }, author_association: association },
     });
 
     it("BUG-004 a draft marked ready for review is reviewed automatically", async () => {
@@ -206,7 +206,7 @@ describe.skipIf(!url)("GitHub App", async () => {
     it("BUG-006 outsiders' questions in a thread are recorded but not answered", async () => {
       const [f] = await db.select().from(s.findings).limit(1);
       await db.update(s.findings).set({ providerCommentId: 777 }).where(eq(s.findings.id, f.id));
-      const reply = { action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 778, in_reply_to_id: 777, body: "@reptile explain", user: { login: "rando", type: "User" }, author_association: "NONE" } };
+      const reply = { action: "created", installation: { id: ACME_INSTALL }, repository: { id: 700000 }, comment: { id: 778, in_reply_to_id: 777, body: "@countersign explain", user: { login: "rando", type: "User" }, author_association: "NONE" } };
       expect((await deliver("pull_request_review_comment", reply)).json.result).toBe("reply recorded");
       expect(jobs.filter((j) => j.name === "answer-thread")).toHaveLength(0);
     });

@@ -65,7 +65,7 @@ describe.skipIf(!url)("Stripe billing", async () => {
   });
 
   it("BUG-003 reviews done during the trial are never billed as overage after upgrading", async () => {
-    process.env.STRIPE_METER_EVENT = "reptile_review";
+    process.env.STRIPE_METER_EVENT = "countersign_review";
     const sent: unknown[] = [];
     const meter = stripe().billing.meterEvents as unknown as { create: (x: unknown) => Promise<object> };
     const realCreate = meter.create;

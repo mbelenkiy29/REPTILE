@@ -1,4 +1,4 @@
-// Everything REPTILE asks of GitHub, as one interface. The real implementation is octokit.ts (official REST API,
+// Everything Countersign asks of GitHub, as one interface. The real implementation is octokit.ts (official REST API,
 // our own GitHub App); tests use a fake. Keep this list short: every call here is a scope we have to request.
 
 export interface UserInstallation {

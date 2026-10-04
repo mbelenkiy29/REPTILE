@@ -18,7 +18,7 @@ export default async function ReviewSettingsPage() {
         title="Review settings"
         description={
           <>
-            Defaults for every repository in {ctx.org.name}. A repository can override them in its own settings or with a reptile.json file.
+            Defaults for every repository in {ctx.org.name}. A repository can override them in its own settings or with a countersign.json file.
             {view.updatedAt && <> Last changed {relativeTime(view.updatedAt)}{view.updatedBy && ` by ${view.updatedBy.name}`}.</>}
           </>
         }

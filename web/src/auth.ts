@@ -42,7 +42,7 @@ const config = (): NextAuthConfig => ({
     ...(p.google ? [Google] : []),
     ...(p.email
       ? [Resend({
-          from: process.env.EMAIL_FROM ?? "REPTILE <dev@localhost>",
+          from: process.env.EMAIL_FROM ?? "Countersign <dev@localhost>",
           maxAge: 15 * 60,
           async sendVerificationRequest({ identifier, url }) {
             await rateLimit(`signin-email:${identifier.toLowerCase()}`, 5, 3600);

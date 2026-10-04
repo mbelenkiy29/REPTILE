@@ -46,7 +46,7 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
             body={
               installs.length
                 ? "The GitHub App is installed but has no repositories selected. Add some in the app's settings on GitHub."
-                : "Install the GitHub App on an account or organization to start reviewing pull requests."
+                : "Install the GitHub App on an account or organization. Reviews start with the next pull request."
             }
             action={isAdmin ? <Button asChild size="sm"><Link href="/onboarding">Connect GitHub</Link></Button> : undefined}
           />

@@ -1,5 +1,5 @@
 {
-  "_about": "REPTILE design tokens. Roles inferred from the Greptile recon (S01-S20); values are neutral placeholders, not Greptile's. replica-brand swaps values, never names. Check with: python3 contrast.py tokens.json && python3 contrast.py tokens.dark.json",
+  "_about": "Countersign design tokens (rebranded by /replica-brand). Roles inferred from the Greptile recon (S01-S20); the accent is Countersign's signature-ink violet, chosen away from Greptile's green. Check with: python3 contrast.py tokens.json && python3 contrast.py tokens.dark.json",
   "theme": "dark",
   "color": {
     "bg": "#0c0f13",
@@ -10,9 +10,9 @@
     "border-input": "#6c7684",
     "text": "#e7ebf0",
     "text-muted": "#98a2b0",
-    "accent": "#8196ff",
-    "accent-hover": "#9cadff",
-    "accent-soft": "#1a2142",
+    "accent": "#b49cff",
+    "accent-hover": "#c6b4ff",
+    "accent-soft": "#211a3d",
     "on-accent": "#0c0f13",
     "danger": "#ff7a70",
     "danger-soft": "#391617",
@@ -23,7 +23,7 @@
     "success-soft": "#0f291c",
     "info": "#6db4ff",
     "info-soft": "#0e2135",
-    "focus": "#8196ff",
+    "focus": "#b49cff",
     "overlay": "#000000",
     "chart-1": "#3987e5",
     "sev-p0": "#9ec5f4",

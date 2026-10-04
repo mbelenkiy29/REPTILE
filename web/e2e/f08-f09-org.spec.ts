@@ -221,12 +221,12 @@ test.describe("F09 billing and API keys", () => {
   test("F09-H6 S15 shows API calls for this server", async ({ page }) => {
     await login(page, { next: "/settings/api-keys" });
     await expect(page.getByText("http://localhost:3100/api/v1/repositories")).toBeVisible();
-    await expect(page.getByText(/reptile-cli|npm install/)).toHaveCount(0);
+    await expect(page.getByText(/countersign-cli|npm install/)).toHaveCount(0);
   });
 
   test("F09-H4 / F09-N4 a new API key reads the API until it's revoked", async ({ page, request }) => {
     expect((await request.get("/api/v1/repositories")).status()).toBe(401);
-    expect((await request.get("/api/v1/repositories", { headers: { authorization: "Bearer rpt_nope" } })).status()).toBe(401);
+    expect((await request.get("/api/v1/repositories", { headers: { authorization: "Bearer csk_nope" } })).status()).toBe(401);
     await login(page, { next: "/settings/api-keys" });
     await page.getByRole("button", { name: "Create key" }).click();
     await page.getByLabel("Name").fill("e2e key");

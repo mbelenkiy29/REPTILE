@@ -4,8 +4,8 @@ import { Resend } from "resend";
 import { render } from "./templates";
 
 export interface SentEmail { to: string; subject: string; text: string }
-const g = globalThis as unknown as { __reptileOutbox?: SentEmail[] };
-export const outbox = () => (g.__reptileOutbox ??= []);
+const g = globalThis as unknown as { __countersignOutbox?: SentEmail[] };
+export const outbox = () => (g.__countersignOutbox ??= []);
 
 let resend: Resend | null = null;
 

@@ -49,7 +49,7 @@ export default async function RepoKnowledgePage({ params, searchParams }: PagePr
           <article className="min-w-0">
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b pb-3">
               <h2 className="text-lg text-fg">{doc.title}</h2>
-              <p className="text-sm text-muted">{editor ? `Edited by ${editor}` : "Written by REPTILE"} · {relativeTime(doc.updatedAt)}</p>
+              <p className="text-sm text-muted">{editor ? `Edited by ${editor}` : "Written by Countersign"} · {relativeTime(doc.updatedAt)}</p>
             </div>
             <DocBody key={doc.id} repoId={repoId} id={doc.id} body={doc.bodyMd} canEdit={ctx.role === "admin"} />
           </article>

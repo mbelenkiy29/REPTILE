@@ -39,7 +39,7 @@ await page.getByLabel("Name").fill("Release bot");
 await page.getByRole("button", { name: "Create key" }).last().click();
 await page.getByRole("heading", { name: "Copy your new key" }).waitFor();
 const secret = await page.getByRole("dialog").locator("pre").innerText();
-check(/^rpt_[A-Za-z0-9]{24}$/.test(secret.trim()), "S15 secret shown once", `S15 secret format ${secret}`);
+check(/^csk_[A-Za-z0-9]{24}$/.test(secret.trim()), "S15 secret shown once", `S15 secret format ${secret}`);
 await page.keyboard.press("Escape");
 check(await page.getByRole("heading", { name: "Copy your new key" }).isVisible(), "S15 Escape doesn't dismiss the secret", "S15 secret dialog closed on Escape");
 await page.getByRole("button", { name: "I've saved it" }).click();

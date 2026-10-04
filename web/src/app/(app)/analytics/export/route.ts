@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="reptile-analytics-${a.range.to.slice(0, 10)}-${days}d.csv"`,
+      "content-disposition": `attachment; filename="countersign-analytics-${a.range.to.slice(0, 10)}-${days}d.csv"`,
     },
   });
 }

@@ -1,5 +1,5 @@
-// reptile.json / .reptile/config.json: schema, validation and precedence.
-// Precedence, highest first: path file (.reptile/ nearest the changed file) > repo file (reptile.json)
+// countersign.json / .countersign/config.json: schema, validation and precedence.
+// Precedence, highest first: path file (.countersign/ nearest the changed file) > repo file (countersign.json)
 // > repo dashboard row > org dashboard row > defaults.
 import { z } from "zod";
 import type { ReviewConfig } from "@/lib/data/types";
@@ -54,7 +54,7 @@ export function mergeConfig(base: ReviewConfig, ...layers: (Partial<ReviewConfig
   return out;
 }
 
-/** A reptile.json / .reptile/config.json file as a merge layer. */
+/** A countersign.json / .countersign/config.json file as a merge layer. */
 export function fileLayer(f: ConfigFile | null | undefined): Partial<ReviewConfig> | null {
   return f ? fromFile(f) : null;
 }
@@ -87,7 +87,7 @@ export interface ValidationIssue {
 
 /** Validate pasted file text. Returns parsed config or issues with line numbers where we can find them. */
 export function validateConfigText(text: string): { ok: true; config: ConfigFile } | { ok: false; issues: ValidationIssue[] } {
-  if (!text.trim()) return { ok: false, issues: [{ path: "", message: "Paste the contents of reptile.json or .reptile/config.json." }] };
+  if (!text.trim()) return { ok: false, issues: [{ path: "", message: "Paste the contents of countersign.json or .countersign/config.json." }] };
   let json: unknown;
   try {
     json = JSON.parse(text);

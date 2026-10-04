@@ -18,7 +18,7 @@ export function DocBody({ repoId, id, body, canEdit }: { repoId: string; id: str
         {canEdit && (
           <div>
             <Button size="sm" variant="secondary" onClick={() => { setText(body); setEditing(true); }}><Pencil aria-hidden /> Edit page</Button>
-            <p className="mt-2 text-sm text-muted">Edited pages are kept as you wrote them; REPTILE won&apos;t overwrite them on the next index.</p>
+            <p className="mt-2 text-sm text-muted">Edited pages are kept as you wrote them; Countersign won&apos;t overwrite them on the next index.</p>
           </div>
         )}
       </div>

@@ -22,7 +22,7 @@ The network check still failed: every review host got a 403 from the egress prox
 apply. Reddit was read through the XPOZ connector instead (its CSV export is over the free plan's monthly limit, so
 thread text was copied from tool output; post bodies were parsed from the saved result file). `/replica-entrepreneur`
 ran on 30 Reddit rows from one source, so every theme is thin. Re-run it with G2, Hacker News and Trustpilot when the
-network allows them, before the brand and launch copy is final. Next: `/replica-brand`.
+network allows them, before the brand and launch copy is final. `/replica-brand` then ran in the same session (see `replica/brand.md`). Next: `/replica-launch`.
 
 ## Where we stopped before that: /replica-entrepreneur, step 1 (collect)
 
@@ -70,7 +70,8 @@ three angles with one recommended), new rows in `replica/features.csv` with `ori
 | test | done, two passes | `replica/test-plan.md`, `replica/bugs.md`, `web/e2e/` |
 | diff | done: **feature parity 92.9**, must 22/22, every *should* done; no layout score (no reference screenshots) | `replica/parity.md` |
 | entrepreneur | done on a **thin sample**: 30 Reddit posts/comments via the XPOZ connector, 1 source; recommended angle A (predictable bills), fixes F1-F8 | `replica/reviews.csv`, `replica/feedback.md`, `replica/fixes.md`, `features.csv` (8 rows with `original = no`) |
-| brand, launch, deploy | not started | |
+| brand | done: renamed to **Countersign** (REPTILE was a Greptile twin), ink-violet accent (0 AA failures), interim mark, voice, sweep clean on `web/`; trademark/domain/handle checks still **to run** | `replica/brand.md`, `replica/brand.json` |
+| launch, deploy | not started | |
 
 Bugs: 17 found, 14 fixed. No open S1 or S2. Three S3s are open (BUG-002 offline save loses input, BUG-013 fix links 404
 while another org is active, BUG-014 install from GitHub's own page ends on an error), each with a `test.fail` repro.
@@ -96,10 +97,10 @@ What the second build pass added: the Free plan (one person, 50 reviews a month;
 service postgresql start
 PW=$(openssl rand -hex 16)
 su postgres -c "psql -qc \"alter user postgres password '$PW'\""
-su postgres -c "psql -qc 'create database reptile'" ; su postgres -c "psql -qc 'create database reptile_test'"
+su postgres -c "psql -qc 'create database countersign'" ; su postgres -c "psql -qc 'create database countersign_test'"
 cat > web/.env.local <<EOF
-DATABASE_URL=postgres://postgres:$PW@localhost:5432/reptile
-TEST_DATABASE_URL=postgres://postgres:$PW@localhost:5432/reptile_test
+DATABASE_URL=postgres://postgres:$PW@localhost:5432/countersign
+TEST_DATABASE_URL=postgres://postgres:$PW@localhost:5432/countersign_test
 AUTH_SECRET=$(openssl rand -base64 32)
 APP_URL=http://localhost:3100
 AUTH_DEV_LOGIN=1
@@ -118,11 +119,16 @@ npx vitest run                     # 93 tests (unit, data layer, webhooks, worke
 npx tsc --noEmit && npx eslint --quiet
 npx next build && SHOW_DESIGN=1 GITHUB_WEBHOOK_SECRET=e2e-webhook-secret npx next start -p 3100   # background
 npm run worker                     # background
-npm run e2e                        # 109 cases: 106 pass + 3 expected failures (open S3s)
+npm run e2e                        # 106 cases, all pass (3 of them are test.fail repros of the open S3s)
 node scripts/screens.mjs           # 56 screen states; rewrites replica/clone-screens: revert unrelated ones before committing
 ```
 
 ## Gotchas from the last session
+
+- A fresh container may lack pgvector: `apt-get install -y postgresql-16-pgvector` before migrating.
+- `tsc` fails on `PageProps`/`LayoutProps` until Next generates its route types: run `npx next typegen` (or a build)
+  first.
+- The app's local database names are now `countersign` and `countersign_test` (the setup block above uses them).
 
 - `pkill -f "next start"` kills your own shell (the pattern matches the command line). Find PIDs with
   `ps -eo pid,args | grep -E "next-server|tsx.*worker/index.ts" | grep -v -E "grep|bash"` and `kill` them.

@@ -137,9 +137,9 @@ describe("inline comments and check runs", () => {
     expect(md).toContain("[Fix with your agent](https://fix)");
   });
   it("is neutral with critical findings and success otherwise", () => {
-    expect(checkRunTitle([finding({ severity: "P0" })])).toEqual({ title: "REPTILE · 1 finding (1 critical)", conclusion: "neutral" });
+    expect(checkRunTitle([finding({ severity: "P0" })])).toEqual({ title: "Countersign · 1 finding (1 critical)", conclusion: "neutral" });
     expect(checkRunTitle([finding(), finding({ id: "2" })]).conclusion).toBe("success");
-    expect(checkRunTitle([]).title).toBe("REPTILE · no issues found");
+    expect(checkRunTitle([]).title).toBe("Countersign · no issues found");
   });
   it("fingerprints ignore case, punctuation and line moves", () => {
     expect(fingerprint("a.ts", "Missing await!", "const x = f()")).toBe(fingerprint("a.ts", "missing await", "const x = f();"));

@@ -82,7 +82,7 @@ export default async function ReviewPage({ params }: PageProps<"/reviews/[id]">)
 
         {r.status === "skipped" && (
           <Alert variant="info" title={`Skipped: ${r.skipReason}`}>
-            Automatic reviews follow your <Link className="underline" href="/settings/review">review settings</Link>. Use “Review anyway”, or comment <code>@reptile</code> on the pull request.
+            Automatic reviews follow your <Link className="underline" href="/settings/review">review settings</Link>. Use “Review anyway”, or comment <code>@countersign</code> on the pull request.
           </Alert>
         )}
         {r.status === "failed" && (
@@ -149,7 +149,7 @@ export default async function ReviewPage({ params }: PageProps<"/reviews/[id]">)
 
             <TabsContent value="github" className="flex flex-col gap-4">
               <p className="text-sm text-muted">
-                This is the comment, inline notes and check that REPTILE posts. The summary comment is edited in place on each new review.
+                This is the comment, inline notes and check that Countersign posts. The summary comment is edited in place on each new review.
               </p>
               {check && (
                 <Card title="Check run">
@@ -169,7 +169,7 @@ export default async function ReviewPage({ params }: PageProps<"/reviews/[id]">)
 
             <TabsContent value="details">
               <dl className="grid max-w-2xl grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-base">
-                <dt className="text-muted">Triggered by</dt><dd className="text-fg">{r.trigger === "mention" ? "A @reptile comment" : r.trigger === "manual" ? "Run again from the dashboard" : "Pull request opened"}</dd>
+                <dt className="text-muted">Triggered by</dt><dd className="text-fg">{r.trigger === "mention" ? "A @countersign comment" : r.trigger === "manual" ? "Run again from the dashboard" : "Pull request opened"}</dd>
                 <dt className="text-muted">Queued</dt><dd className="text-fg">{formatDate(r.queuedAt, true)}</dd>
                 <dt className="text-muted">Finished</dt><dd className="text-fg">{formatDate(r.completedAt, true)}</dd>
                 <dt className="text-muted">Credits used</dt><dd className="text-fg">{r.creditsUsed}</dd>

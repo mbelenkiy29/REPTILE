@@ -9,7 +9,7 @@ import { rateLimit, RateLimitError } from "@/lib/rate-limit";
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const now = () => new Date().toISOString();
-export const botSlug = () => (process.env.GITHUB_APP_SLUG ?? "reptile").toLowerCase();
+export const botSlug = () => (process.env.GITHUB_APP_SLUG ?? "countersign").toLowerCase();
 const mentionsBot = (body: string | undefined | null) => !!body && new RegExp(`(^|\\s)@${botSlug()}(\\[bot\\])?\\b`, "i").test(body);
 /** People with write access to the repository. Anyone can comment on a public repo; only these can spend the org's reviews. */
 const canTrigger = (association: unknown) => ["OWNER", "MEMBER", "COLLABORATOR"].includes(String(association));
@@ -76,8 +76,8 @@ export async function queueReview(pr: typeof s.pullRequests.$inferSelect, trigge
 }
 
 /**
- * A review comment the team wrote themselves, outside REPTILE's threads: what they ask for in review is the best evidence
- * for rules REPTILE should suggest (learn-rules job). Only people with write access, and only comments with some substance.
+ * A review comment the team wrote themselves, outside Countersign's threads: what they ask for in review is the best evidence
+ * for rules Countersign should suggest (learn-rules job). Only people with write access, and only comments with some substance.
  */
 async function recordHumanComment(installationId: number | undefined, p: Json): Promise<string> {
   const body = String(p.comment?.body ?? "").trim();
@@ -147,7 +147,7 @@ export async function handleGitHubEvent(event: string, p: Json): Promise<string>
       }
       if (p.action === "labeled") {
         // Only labels that the review settings turn reviews on with start a review: the repository's own settings
-        // when it has them, else the org defaults. (Labels set only in reptile.json are applied by the worker on other triggers.)
+        // when it has them, else the org defaults. (Labels set only in countersign.json are applied by the worker on other triggers.)
         const rows = await db.select({ repoId: s.reviewConfigs.repoId, labels: s.reviewConfigs.includeLabels }).from(s.reviewConfigs)
           .where(and(eq(s.reviewConfigs.orgId, hit.repo.orgId), or(isNull(s.reviewConfigs.repoId), eq(s.reviewConfigs.repoId, hit.repo.id))));
         const cfg = rows.find((r) => r.repoId === hit.repo.id) ?? rows.find((r) => r.repoId === null);

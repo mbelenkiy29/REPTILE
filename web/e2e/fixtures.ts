@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 /** Same as src/db/ids.ts: the UUID the seed gives "r_api", "o_acme", ... */
 export function seedId(key: string) {
-  const h = createHash("sha1").update(`reptile-seed:${key}`).digest("hex");
+  const h = createHash("sha1").update(`countersign-seed:${key}`).digest("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 

@@ -257,7 +257,7 @@ export function AppShell({ orgs, currentOrgId, user, dev, children }: ShellProps
             <Menu aria-hidden />
           </Button>
           <Link href="/repos" className="text-md font-semibold tracking-tight text-fg lg:hidden">
-            REPTILE
+            Countersign
           </Link>
           <div className="flex-1" />
           <ThemeToggle />

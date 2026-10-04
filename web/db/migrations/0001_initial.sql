@@ -1,4 +1,4 @@
--- REPTILE schema v1 (Postgres 16 + pgvector). First migration.
+-- Countersign schema v1 (Postgres 16 + pgvector). First migration.
 -- Conventions: uuid ids, timestamptz in UTC, every owned row carries org_id,
 -- on-delete rules chosen explicitly, an index on every FK and every filter/sort column.
 -- Access: data-layer authorisation (see architecture.md). RLS is enabled with
@@ -175,7 +175,7 @@ create table knowledge_docs (               -- could-have: per-repo knowledge ba
 -- ───────────────────────── config & rules ─────────────────────────
 
 -- Dashboard config: one org default (repo_id null) and optional per-repo override.
--- Repo files (reptile.json, .reptile/config.json) are read at review time and
+-- Repo files (countersign.json, .countersign/config.json) are read at review time and
 -- snapshotted into reviews.effective_config. Precedence: path file > repo file > repo row > org row.
 create table review_configs (
   id uuid primary key default gen_random_uuid(),

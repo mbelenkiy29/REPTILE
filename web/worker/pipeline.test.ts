@@ -48,7 +48,7 @@ describe.skipIf(!url)("worker pipeline", async () => {
     setAi({ model, embedder: new FakeEmbedder() });
     await seed({ reset: true });
     // A real git repository for indexing.
-    const base = mkdtempSync(join(tmpdir(), "reptile-git-"));
+    const base = mkdtempSync(join(tmpdir(), "countersign-git-"));
     const work = join(base, "work");
     mkdirSync(join(work, "src"), { recursive: true });
     writeFileSync(join(work, "src/price.ts"), "export function price(item) {\n  return item.price * item.quantity;\n}\n");
@@ -60,7 +60,7 @@ describe.skipIf(!url)("worker pipeline", async () => {
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init");
     mkdirSync(join(base, "contoso"));
     execFileSync("git", ["clone", "-q", "--bare", work, join(base, "contoso/storefront.git")]);
-    process.env.REPTILE_GIT_BASE = `file://${base}`;
+    process.env.COUNTERSIGN_GIT_BASE = `file://${base}`;
   });
   afterAll(async () => { setJobSender(undefined); setGitHost(undefined); setAi({ model: undefined, embedder: undefined }); await closeDb(); });
 
@@ -84,12 +84,12 @@ describe.skipIf(!url)("worker pipeline", async () => {
       expect(await indexRepo(repoId)).toMatchObject({ embedded: 0 });
     });
     it("records a readable failure", async () => {
-      const prev = process.env.REPTILE_GIT_BASE;
-      process.env.REPTILE_GIT_BASE = "file:///nonexistent";
+      const prev = process.env.COUNTERSIGN_GIT_BASE;
+      process.env.COUNTERSIGN_GIT_BASE = "file:///nonexistent";
       await expect(indexRepo(repoId)).rejects.toThrow("The clone failed");
       const [repo] = await db.select().from(s.repositories).where(eq(s.repositories.id, repoId));
       expect(repo.indexStatus).toBe("failed");
-      process.env.REPTILE_GIT_BASE = prev;
+      process.env.COUNTERSIGN_GIT_BASE = prev;
       await indexRepo(repoId);
     });
   });
@@ -110,9 +110,9 @@ describe.skipIf(!url)("worker pipeline", async () => {
       ]);
       expect(posted.comments[1].body).toContain("```suggestion");
       const summary = gh.issueComments.at(-1)!;
-      expect(summary.body).toContain("<!-- reptile:summary -->");
+      expect(summary.body).toContain("<!-- countersign:summary -->");
       expect(summary.body).toContain("Hard-coded secret](https://github.com/contoso/storefront/pull/9#discussion_r");
-      expect(gh.checkRuns.at(-1)).toMatchObject({ conclusion: "neutral", title: "REPTILE · 2 findings (1 critical)" });
+      expect(gh.checkRuns.at(-1)).toMatchObject({ conclusion: "neutral", title: "Countersign · 2 findings (1 critical)" });
       const [row] = await db.select().from(s.reviews).where(eq(s.reviews.id, reviewId));
       expect(row).toMatchObject({ status: "completed", confidenceScore: 2, creditsUsed: 1 });
       expect((await db.select().from(s.usageEvents).where(eq(s.usageEvents.reviewId, reviewId))).length).toBe(1);
@@ -136,8 +136,8 @@ describe.skipIf(!url)("worker pipeline", async () => {
       expect(fs.map((f) => `${f.title}:${f.status}`).sort()).toEqual(["Bug: ignores quantity:addressed", "Hard-coded secret:open"]);
     });
 
-    it("reptile.json in the repository overrides the dashboard", async () => {
-      gh.files.set(`${REPO}@sha3:reptile.json`, JSON.stringify({ ignorePatterns: ["src/**"] }));
+    it("countersign.json in the repository overrides the dashboard", async () => {
+      gh.files.set(`${REPO}@sha3:countersign.json`, JSON.stringify({ ignorePatterns: ["src/**"] }));
       const pr = await openPr(10, "sha3", file1, patch1);
       const reviewId = (await queueReview(pr, "opened", "lenaf"))!;
       expect(await runReview(reviewId, attempt)).toEqual({ result: "skipped: Only ignored files changed" });
@@ -206,11 +206,11 @@ describe.skipIf(!url)("worker pipeline", async () => {
       expect(runs[0].conclusion).toBeDefined();
     });
 
-    it("BUG-010 a .reptile/config.json nearer the file can un-ignore what reptile.json ignores", async () => {
+    it("BUG-010 a .countersign/config.json nearer the file can un-ignore what countersign.json ignores", async () => {
       const doc = ["# Guide", "", "BUG: the install step is wrong", ""].join("\n");
       const pr = await openPr(21, "sha21", doc, ["@@ -0,0 +1,3 @@", "+# Guide", "+", "+BUG: the install step is wrong"].join("\n"), "docs/guide.md");
-      gh.files.set(`${REPO}@sha21:reptile.json`, JSON.stringify({ ignorePatterns: ["**/*.md"] }));
-      gh.files.set(`${REPO}@sha21:docs/.reptile/config.json`, JSON.stringify({ ignorePatterns: [] }));
+      gh.files.set(`${REPO}@sha21:countersign.json`, JSON.stringify({ ignorePatterns: ["**/*.md"] }));
+      gh.files.set(`${REPO}@sha21:docs/.countersign/config.json`, JSON.stringify({ ignorePatterns: [] }));
       const id = (await queueReview(pr, "opened", "lenaf"))!;
       const out = await runReview(id, attempt);
       expect(out.result).toBe("completed");
@@ -243,7 +243,7 @@ describe.skipIf(!url)("worker pipeline", async () => {
     });
     it("answers a question in the thread", async () => {
       const [f] = await db.select().from(s.findings).where(eq(s.findings.title, "Hard-coded secret")).limit(1);
-      await answerThread({ findingId: f.id, commentId: f.providerCommentId!, body: "@reptile why?", author: "lenaf" });
+      await answerThread({ findingId: f.id, commentId: f.providerCommentId!, body: "@countersign why?", author: "lenaf" });
       expect(gh.replies.at(-1)).toMatchObject({ inReplyTo: f.providerCommentId, body: expect.stringContaining("Hard-coded secret") });
     });
     it("proposes rules from repeated feedback, as suggestions", async () => {

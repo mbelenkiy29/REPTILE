@@ -41,15 +41,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <main id="content" className="flex flex-1 items-start justify-center px-4 pb-16 pt-[8vh]">
         <div className="flex w-full max-w-[400px] flex-col gap-6">
           <div>
-            <h1 className="text-xl text-fg">{sent ? "Check your email" : "Sign in to REPTILE"}</h1>
+            <h1 className="text-xl text-fg">{sent ? "Check your email" : "Sign in to Countersign"}</h1>
             <p className="mt-1 text-muted">
-              {sent ? "We sent you a sign-in link. It works once and expires in 15 minutes." : "Code review on every pull request, with your whole codebase as context."}
+              {sent ? "We sent you a sign-in link. It works once and expires in 15 minutes." : "A second reviewer on every pull request, reading your whole codebase."}
             </p>
           </div>
 
           {error && <Alert variant="danger" title="Not signed in" live>{error}</Alert>}
           {sp.signedout === "all" && <Alert variant="success" title="Signed out everywhere">Every device that was signed in has been signed out.</Alert>}
-          {sp.deleted === "1" && <Alert variant="success" title="Account deleted">Your account and its data are gone. Thanks for trying REPTILE.</Alert>}
+          {sp.deleted === "1" && <Alert variant="success" title="Account deleted">Your account and its data have been deleted. Thanks for trying Countersign.</Alert>}
 
           {sent ? (
             <Button variant="link" asChild className="self-start">
@@ -86,7 +86,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
                 </>
               )}
               <p className="text-sm text-muted">
-                Signing in with GitHub doesn&apos;t give REPTILE access to any code. You choose repositories in the next step.
+                Signing in with GitHub doesn&apos;t give Countersign access to any code. You choose repositories in the next step.
               </p>
             </>
           )}

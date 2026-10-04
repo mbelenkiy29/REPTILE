@@ -4,18 +4,18 @@ import type { GitHost, UserInstallation } from "./types";
 
 export type { GitHost, UserInstallation, PrFile, PrInfo, ReviewCommentInput } from "./types";
 
-const g = globalThis as unknown as { __reptileGitHost?: GitHost };
+const g = globalThis as unknown as { __countersignGitHost?: GitHost };
 
 /** The GitHub implementation in use. Tests replace it with setGitHost(fake). */
 export async function gitHost(): Promise<GitHost> {
-  if (g.__reptileGitHost) return g.__reptileGitHost;
-  if (fakeMode()) return (g.__reptileGitHost = await devFake());
+  if (g.__countersignGitHost) return g.__countersignGitHost;
+  if (fakeMode()) return (g.__countersignGitHost = await devFake());
   const { octokitHost } = await import("./octokit");
   return octokitHost;
 }
 
 export function setGitHost(h: GitHost | undefined) {
-  g.__reptileGitHost = h;
+  g.__countersignGitHost = h;
 }
 
 /** Local development without a GitHub App: GITHUB_FAKE=1 plus dev login (never on a public URL). */
@@ -87,7 +87,7 @@ export async function userGitHubToken(userId: string): Promise<string> {
 }
 
 export async function listUserInstallations(userId: string): Promise<UserInstallation[]> {
-  if (!g.__reptileGitHost && !fakeMode() && !githubConfigured()) return [];
-  const token = g.__reptileGitHost || fakeMode() ? "fake-user-token" : await userGitHubToken(userId);
+  if (!g.__countersignGitHost && !fakeMode() && !githubConfigured()) return [];
+  const token = g.__countersignGitHost || fakeMode() ? "fake-user-token" : await userGitHubToken(userId);
   return (await gitHost()).listUserInstallations(token);
 }

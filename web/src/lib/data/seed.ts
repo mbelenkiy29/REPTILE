@@ -1,4 +1,4 @@
-// Seed data for the fake data layer. Everything here is invented for REPTILE.
+// Seed data for the fake data layer. Everything here is invented for Countersign.
 // Deterministic: a seeded PRNG, with dates relative to the moment the store is created.
 import { DEFAULT_CONFIG } from "@/lib/review/defaults";
 import type {
@@ -259,7 +259,7 @@ export function createSeed(now = Date.now()): Store {
       id: reviewId, orgId: r.orgId, pullRequestId: pr.id, headSha: pr.headSha,
       trigger: rnd() < 0.15 ? "mention" : "opened", status,
       skipReason: skipped ? (draft ? "Draft pull request" : "Author is excluded in review settings") : null,
-      error: failed ? "The model request timed out twice. Comment @reptile to try again." : null,
+      error: failed ? "The model request timed out twice. Comment @countersign to try again." : null,
       confidenceScore: score, verdict,
       summaryMd: status === "completed"
         ? `${pr.title}. The change touches ${2 + (i % 5)} files in the ${r.fullName.split("/")[1]} service.`
@@ -321,8 +321,8 @@ export function createSeed(now = Date.now()): Store {
   ];
 
   const apiKeys: ApiKey[] = [
-    { id: "key_1", orgId: "o_acme", name: "CI pipeline", prefix: "rpt_7Hc2", createdBy: ME, lastUsedAt: iso(now - 3 * HOUR), revokedAt: null, createdAt: iso(now - 50 * DAY) },
-    { id: "key_2", orgId: "o_acme", name: "Local CLI (Priya)", prefix: "rpt_Qm81", createdBy: "u_priya", lastUsedAt: null, revokedAt: null, createdAt: iso(now - 5 * DAY) },
+    { id: "key_1", orgId: "o_acme", name: "CI pipeline", prefix: "csk_7Hc2", createdBy: ME, lastUsedAt: iso(now - 3 * HOUR), revokedAt: null, createdAt: iso(now - 50 * DAY) },
+    { id: "key_2", orgId: "o_acme", name: "Local CLI (Priya)", prefix: "csk_Qm81", createdBy: "u_priya", lastUsedAt: null, revokedAt: null, createdAt: iso(now - 5 * DAY) },
   ];
 
   const integrations: Integration[] = [

@@ -14,7 +14,7 @@ export default async function ValidatePage() {
       <PageHeader
         crumbs={[{ href: "/settings/review", label: "Review settings" }]}
         title="Check a config file"
-        description="Paste reptile.json or a .reptile/config.json before you commit it. Nothing is saved; this only checks the file and shows what would apply."
+        description="Paste countersign.json or a .countersign/config.json before you commit it. Nothing is saved; this only checks the file and shows what would apply."
       />
       <Validator orgConfig={effective} />
     </>

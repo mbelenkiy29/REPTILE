@@ -8,7 +8,7 @@ import type { ReviewConfig } from "@/lib/data";
 
 export async function saveConfig(repoId: string | null, config: ReviewConfig) {
   const ctx = await requireOrg();
-  // Validate with the same schema as reptile.json, so the dashboard can't save what a file couldn't say.
+  // Validate with the same schema as countersign.json, so the dashboard can't save what a file couldn't say.
   const parsed = ConfigFileSchema.safeParse(toConfigFile(config));
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues.map((i) => i.message).join(" ") };
   const clean = mergeConfig(DEFAULT_CONFIG, fileLayer(parsed.data));

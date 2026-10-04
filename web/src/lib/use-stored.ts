@@ -3,7 +3,7 @@ import * as React from "react";
 
 // localStorage-backed value for per-viewer conveniences (theme, sidebar). Reads are wrapped in
 // try/catch because storage can throw in private windows; the fallback is always a valid state.
-const EVENT = "reptile:storage";
+const EVENT = "countersign:storage";
 
 function read(key: string): string | null {
   try {

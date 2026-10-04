@@ -63,7 +63,7 @@ export async function learnRules() {
   const model = await reviewModel();
   let proposed = 0;
   for (const { orgId } of orgs) {
-    // Feedback on REPTILE's findings, and the team's own review comments (no finding; PR and file on the row).
+    // Feedback on Countersign's findings, and the team's own review comments (no finding; PR and file on the row).
     const fb = await db.select({ fb: s.feedback, f: s.findings, url: s.pullRequests.url }).from(s.feedback)
       .leftJoin(s.findings, eq(s.findings.id, s.feedback.findingId))
       .innerJoin(s.pullRequests, eq(s.pullRequests.id, dsql`coalesce(${s.feedback.pullRequestId}, ${s.findings.pullRequestId})`))

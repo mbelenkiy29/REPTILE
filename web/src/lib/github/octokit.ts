@@ -94,7 +94,7 @@ export const octokitHost: GitHost = {
   async createCheckRun(installationId, repo, headSha, title) {
     const o = await inst(installationId);
     const { data } = await o.request("POST /repos/{owner}/{repo}/check-runs", {
-      ...split(repo), name: "REPTILE", head_sha: headSha, status: "in_progress", output: { title, summary: "Reviewing the changes." },
+      ...split(repo), name: "Countersign", head_sha: headSha, status: "in_progress", output: { title, summary: "Reviewing the changes." },
     });
     return Number(data.id);
   },

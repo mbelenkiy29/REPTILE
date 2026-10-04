@@ -410,7 +410,7 @@ export function Showcase() {
 
         <Section id="code" title="Code">
           <CodeBlock
-            title="reptile.json"
+            title="countersign.json"
             code={JSON.stringify({ strictness: 2, commentTypes: ["logic", "syntax"], ignorePatterns: ["dist/**"] }, null, 2)}
           />
         </Section>

@@ -14,7 +14,7 @@ export function FixView({ title, prompt, reviewHref, repo }: { title: string; pr
         <CodeBlock title="prompt.txt" code={prompt} />
         <p className="text-sm text-muted">
           With Claude Code: run <code className="font-mono text-fg">claude</code> in the repository and paste the prompt. Other agents work the same way.
-          Then push; REPTILE reviews the new commits and marks fixed findings. <Link href={reviewHref} className="text-accent underline underline-offset-2">Back to the review</Link>
+          Then push; Countersign reviews the new commits and marks fixed findings. <Link href={reviewHref} className="text-accent underline underline-offset-2">Back to the review</Link>
         </p>
       </div>
     </>

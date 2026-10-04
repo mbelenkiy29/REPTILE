@@ -7,7 +7,7 @@ describe("email templates", () => {
     expect(m.html).not.toContain("<script>");
     expect(m.html).toContain("&lt;script&gt;");
     expect(m.text).toContain("https://app/invite/t");
-    expect(m.subject).toBe("Bob & Co invited you to <script>x</script> on REPTILE");
+    expect(m.subject).toBe("Bob & Co invited you to <script>x</script> on Countersign");
   });
   it("every template renders with a subject and a text part", () => {
     for (const t of ["signin", "invite", "payment-failed", "trial-ending"]) {

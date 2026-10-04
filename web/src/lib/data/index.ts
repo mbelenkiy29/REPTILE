@@ -776,7 +776,7 @@ export async function createApiKey(ctx: Ctx, name: string): Promise<{ key: ApiKe
   assertAdmin(ctx);
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   const bytes = randomBytes(24);
-  const secret = "rpt_" + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+  const secret = "csk_" + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
   const [k] = await db.insert(s.apiKeys).values({ orgId: ctx.orgId, name, prefix: secret.slice(0, 8), keyHash: hashToken(secret), createdBy: ctx.userId }).returning();
   return {
     key: { id: k.id, orgId: k.orgId, name: k.name, prefix: k.prefix, createdBy: ctx.userId, lastUsedAt: null, revokedAt: null, createdAt: iso(k.createdAt)! },
@@ -795,7 +795,7 @@ export async function revokeApiKey(ctx: Ctx, id: string) {
 
 /** For /api/v1: resolve a bearer key to its org. Updates last-used at most once a minute. */
 export async function authenticateApiKey(secret: string): Promise<{ orgId: string; keyId: string } | null> {
-  if (!/^rpt_[A-Za-z0-9]{24}$/.test(secret)) return null;
+  if (!/^csk_[A-Za-z0-9]{24}$/.test(secret)) return null;
   const [k] = await db.select().from(s.apiKeys).where(and(eq(s.apiKeys.keyHash, hashToken(secret)), isNull(s.apiKeys.revokedAt)));
   if (!k) return null;
   await db.update(s.apiKeys).set({ lastUsedAt: now() })

@@ -18,7 +18,7 @@ export default async function KnowledgePage() {
     <>
       <PageHeader
         title="Knowledge"
-        description="Docs REPTILE writes about each repository: how it's laid out, what each area does, and what broke before. Reviews read them, and your team can correct them."
+        description="Docs Countersign writes about each repository: how it's laid out, what each area does, and what broke before. Reviews read them, and your team can correct them."
       />
       {withDocs.length === 0 ? (
         <div className="rounded-lg border">
